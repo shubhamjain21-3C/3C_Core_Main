@@ -19,7 +19,6 @@ export const NAV_LINKS = [
   { href: '/',          label: 'Home'      },
   { href: '/about',     label: 'About'     },
   { href: '/services',  label: 'Services'  },
-  { href: '/portfolio', label: 'Portfolio' },
   { href: '/contact',   label: 'Contact'   },
 ]
 
@@ -32,9 +31,3 @@ export const SERVICES_LIST = [
   'Letting Services',
 ]
 
-export const STATS = [
-  { label: 'Properties Managed',  value: 250, suffix: '+' },
-  { label: 'Years Experience',    value: 15,  suffix: '+' },
-  { label: 'Happy Landlords',     value: 180, suffix: '+' },
-  { label: 'Tenant Satisfaction', value: 96,  suffix: '%' },
-]
