@@ -190,6 +190,10 @@ function InventoryDIYContent() {
   // Guests keep the whole report in the browser: the persistence APIs now
   // require a session, so we never call them when signed out.
   const isGuest = status !== 'authenticated'
+  // Signed in, but the server could not store the report (e.g. database
+  // unavailable). Behave exactly like a guest rather than failing every upload.
+  const [saveFailed, setSaveFailed] = useState(false)
+  const localOnly = isGuest || saveFailed
 
   // ── Lookups ───────────────────────────────────────────────────────────────
   const [reportTypes,    setReportTypes]    = useState<LookupRow[]>([])
@@ -361,7 +365,15 @@ function InventoryDIYContent() {
         setCreateError(data.message || 'Failed to start report.')
         return
       }
-      setMeta(m => ({ ...m, reportId: data.reportId }))
+      if (data.dbSaved) {
+        setMeta(m => ({ ...m, reportId: data.reportId }))
+        setSaveFailed(false)
+      } else {
+        // The returned id is a client-side placeholder that exists nowhere on
+        // the server; using it would make every room/item/upload call fail.
+        setMeta(m => ({ ...m, reportId: null }))
+        setSaveFailed(true)
+      }
       if (rooms.length === 0) setRooms([newRoom('Living Room')])
       setStep(2)
     } catch {
@@ -432,7 +444,7 @@ function InventoryDIYContent() {
   // ── Media upload helpers ──────────────────────────────────────────────────
   async function uploadMedia(roomIdx: number, itemIdx: number | null, mediaIdx: number) {
     // Make sure the room is persisted so we have a roomId for the upload path
-    if (isGuest) {
+    if (localOnly || !meta.reportId) {
       // Photo stays in the browser as an object URL and goes into the PDF
       // payload from there. Nothing is uploaded.
       patchMedia(roomIdx, itemIdx, mediaIdx, { uploading: false, uploadError: null })
@@ -735,7 +747,7 @@ function InventoryDIYContent() {
       const url  = URL.createObjectURL(blob)
       const a    = document.createElement('a')
       a.href = url
-      a.download = `3CCore-Inventory-${(meta.reportId ?? 'report').slice(0, 8)}.pdf`
+      a.download = `3CCore-Inventory-${(meta.reportId || 'report').slice(0, 8)}.pdf`
       document.body.appendChild(a)
       a.click()
       a.remove()
@@ -933,15 +945,22 @@ function InventoryDIYContent() {
         {/* ── STEP 2 — Rooms / media ──────────────────────────────────────── */}
         {step === 2 && (
           <div className="space-y-5">
-            {isGuest && (
+            {localOnly && (
               <div className="rounded-xl p-3 text-xs text-[#8B3A2A] flex items-start gap-2"
                 style={{ background: 'rgba(212,134,10,0.08)', border: '1px solid rgba(212,134,10,0.25)' }}>
                 <LogIn size={13} className="text-[#D4860A] mt-0.5 flex-shrink-0" />
-                <span>
-                  Your photos and notes stay in this browser and are not uploaded.{' '}
-                  <Link href="/portal/login?role=property_manager" className="text-[#D4860A] underline">Log in</Link>{' '}
-                  to save this report to your portal.
-                </span>
+                {isGuest ? (
+                  <span>
+                    Your photos and notes stay in this browser and are not uploaded.{' '}
+                    <Link href="/portal/login?role=property_manager" className="text-[#D4860A] underline">Log in</Link>{' '}
+                    to save this report to your portal.
+                  </span>
+                ) : (
+                  <span>
+                    This report could not be saved to your portal right now, so your photos and notes
+                    stay in this browser. You can still download the PDF.
+                  </span>
+                )}
               </div>
             )}
 
