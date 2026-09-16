@@ -115,6 +115,41 @@ function newMedia(file: File): MediaItem {
   }
 }
 
+// ── PDF photo preparation ───────────────────────────────────────────────────
+// Photos go to the PDF route as compressed inline JPEGs. Keeping this in the
+// browser means guests' photos (never uploaded) still appear in their report,
+// and the server never has to fetch a URL. Budgets keep the request under the
+// 4.5 MB serverless body limit.
+const PDF_PHOTO_MAX_PX        = 1024
+const PDF_PHOTO_QUALITY       = 0.6
+const PDF_PHOTOS_PER_ROOM     = 40
+const PDF_PHOTOS_TOTAL        = 60
+const PDF_PHOTO_MAX_CHARS     = 700_000
+const PDF_PHOTO_BUDGET_CHARS  = 3_500_000
+
+function compressImage(src: string): Promise<string | null> {
+  return new Promise(resolve => {
+    const img = new Image()
+    if (!src.startsWith('blob:') && !src.startsWith('data:')) img.crossOrigin = 'anonymous'
+    img.onload = () => {
+      try {
+        const scale  = Math.min(1, PDF_PHOTO_MAX_PX / Math.max(img.naturalWidth, img.naturalHeight))
+        const canvas = document.createElement('canvas')
+        canvas.width  = Math.max(1, Math.round(img.naturalWidth  * scale))
+        canvas.height = Math.max(1, Math.round(img.naturalHeight * scale))
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return resolve(null)
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+        resolve(canvas.toDataURL('image/jpeg', PDF_PHOTO_QUALITY))
+      } catch {
+        resolve(null) // tainted canvas or decode failure
+      }
+    }
+    img.onerror = () => resolve(null) // e.g. HEIC in a browser that cannot decode it
+    img.src = src
+  })
+}
+
 function newRoom(name = 'New Room'): Room {
   return {
     localId:       uid(),
@@ -210,6 +245,7 @@ function InventoryDIYContent() {
   const [pdfDownloading,  setPdfDownloading]  = useState(false)
   const [pdfError,        setPdfError]        = useState('')
   const [pdfDone,         setPdfDone]         = useState(false)
+  const [pdfPhotoNote,    setPdfPhotoNote]    = useState('')
   const [cameraTarget,    setCameraTarget]    = useState<{ roomIdx: number; itemIdx: number | null } | null>(null)
 
   // Try to restore an in-progress draft from localStorage
@@ -618,14 +654,38 @@ function InventoryDIYContent() {
     setPdfDownloading(true)
     setPdfError('')
     setPdfDone(false)
+    setPdfPhotoNote('')
     try {
+      // Compress every still photo (room-level and item-level) within budget.
+      let totalPhotos = 0
+      let budget      = PDF_PHOTO_BUDGET_CHARS
+      let skipped     = 0
+      const roomPhotos: Array<{ urls: string[]; captions: string[] }> = []
+      for (const r of rooms) {
+        const candidates = [...r.media, ...r.items.flatMap(i => i.media)]
+          .filter(m => m.mediaTypeCode !== 'video' && !m.file?.type.startsWith('video/'))
+        const urls: string[] = []
+        const captions: string[] = []
+        for (const m of candidates) {
+          if (urls.length >= PDF_PHOTOS_PER_ROOM || totalPhotos >= PDF_PHOTOS_TOTAL) { skipped++; continue }
+          const src = m.previewUrl || m.remoteUrl
+          const data = src ? await compressImage(src) : null
+          if (!data || data.length > PDF_PHOTO_MAX_CHARS || data.length > budget) { skipped++; continue }
+          urls.push(data)
+          captions.push(m.caption.slice(0, 200))
+          budget -= data.length
+          totalPhotos++
+        }
+        roomPhotos.push({ urls, captions })
+      }
+
       const propertyAddress = [
         meta.addressLine1, meta.addressLine2, meta.city, meta.postcode,
       ].filter(Boolean).join(', ')
 
       const reportTypeLabel = reportTypes.find(t => t.code === meta.reportTypeCode)?.label || 'Inventory Report'
 
-      const roomsPayload = rooms.map(r => {
+      const roomsPayload = rooms.map((r, ri) => {
         const aiRoom = analysisResult?.find(a => a.room_name === r.roomName)
         return {
           room_name:       r.roomName,
@@ -644,7 +704,8 @@ function InventoryDIYContent() {
             // AI-discovered items (if any)
             ...(aiRoom?.items ?? []),
           ],
-          imageUrls: r.media.map(m => m.remoteUrl).filter(Boolean) as string[],
+          imageUrls:     roomPhotos[ri].urls,
+          imageCaptions: roomPhotos[ri].captions,
         }
       })
 
@@ -662,9 +723,13 @@ function InventoryDIYContent() {
         }),
       })
       if (!res.ok) {
-        const text = await res.text().catch(() => '')
-        setPdfError(text || `PDF generation failed (${res.status}).`)
+        setPdfError(res.status === 400
+          ? 'The report is too large to generate. Try removing some rooms or photos.'
+          : 'PDF generation failed. Please try again.')
         return
+      }
+      if (skipped > 0) {
+        setPdfPhotoNote(`${skipped} photo${skipped === 1 ? '' : 's'} could not be included (unsupported format or size limit).`)
       }
       const blob = await res.blob()
       const url  = URL.createObjectURL(blob)
@@ -1113,6 +1178,10 @@ function InventoryDIYContent() {
 
               {pdfDone && !pdfError && (
                 <p className="text-green-700 text-xs mb-3">PDF downloaded — check your downloads folder.</p>
+              )}
+
+              {pdfDone && pdfPhotoNote && (
+                <p className="text-[#8B3A2A] text-xs mb-3">{pdfPhotoNote}</p>
               )}
 
               <button

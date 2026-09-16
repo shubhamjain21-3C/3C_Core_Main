@@ -15,6 +15,13 @@ export const runtime  = 'nodejs'
 const MAX_ROOMS            = 60
 const MAX_ITEMS_PER_ROOM   = 200
 const MAX_IMAGES_PER_ROOM  = 40
+const MAX_IMAGES_TOTAL     = 60
+// One compressed photo as a base64 data URI (~500 KB of image data).
+const MAX_IMAGE_CHARS      = 700_000
+
+// Photos arrive as inline JPEG/PNG data URIs, compressed in the browser. The
+// server never fetches a URL on the caller's behalf, so there is no SSRF path.
+const IMAGE_DATA_URI_RE = /^data:image\/(jpeg|png);base64,/
 
 // ── Schema ──────────────────────────────────────────────────────────────────
 const roomSchema = z.object({
@@ -29,7 +36,8 @@ const roomSchema = z.object({
     description: z.string().optional(),
     concerns:    z.string().max(5000).optional(),
   })).max(MAX_ITEMS_PER_ROOM).default([]),
-  imageUrls: z.array(z.string().max(2000)).max(MAX_IMAGES_PER_ROOM).default([]),
+  imageUrls: z.array(z.string().max(MAX_IMAGE_CHARS)).max(MAX_IMAGES_PER_ROOM).default([]),
+  imageCaptions: z.array(z.string().max(200)).max(MAX_IMAGES_PER_ROOM).default([]),
 })
 
 const pdfSchema = z.object({
@@ -40,7 +48,10 @@ const pdfSchema = z.object({
   inspectorName:   z.string().default(''),
   preparedBy:      z.string().default(''),
   rooms:           z.array(roomSchema).max(MAX_ROOMS).default([]),
-})
+}).refine(
+  d => d.rooms.reduce((n, r) => n + r.imageUrls.length, 0) <= MAX_IMAGES_TOTAL,
+  { message: 'Too many photos.' },
+)
 
 // Colour palette — keep aligned with the amber/gold brand
 const COLOURS = {
@@ -163,6 +174,54 @@ function buildPdf(data: z.infer<typeof pdfSchema>) {
         doc.setTextColor(...COLOURS.dark)
         doc.text(descLines, m + 90, y)
         y += rowH + 4
+      }
+    }
+
+    // Photos — 3-column grid, aspect ratio preserved
+    const gap   = 4
+    const cellW = (mw - gap * 2) / 3
+    const maxH  = 55
+    const capH  = 4
+    // Measure first, so corrupt images are dropped before anything is counted.
+    const photos = room.imageUrls
+      .map((src, i) => ({ src, caption: room.imageCaptions[i] ?? '' }))
+      .filter(p => IMAGE_DATA_URI_RE.test(p.src))
+      .map(p => {
+        try {
+          const props = doc.getImageProperties(p.src)
+          if (!props.width || !props.height) return null
+          const h = Math.min(maxH, cellW * (props.height / props.width))
+          const w = h * (props.width / props.height)
+          return { ...p, w, h, fmt: props.fileType === 'PNG' ? 'PNG' : 'JPEG' }
+        } catch {
+          return null // corrupt image data — skip it rather than fail the report
+        }
+      })
+      .filter((p): p is NonNullable<typeof p> => p !== null)
+
+    if (photos.length > 0) {
+      if (y > ph - 40) { doc.addPage(); y = 20 }
+      doc.setFont('helvetica', 'bold').setFontSize(8).setTextColor(...COLOURS.muted)
+      doc.text(`Photos (${photos.length})`, m, y)
+      y += 4
+
+      for (let i = 0; i < photos.length; i += 3) {
+        const row = photos.slice(i, i + 3)
+
+        const rowH = Math.max(...row.map(p => p.h)) + capH + 2
+        if (y + rowH > ph - 20) { doc.addPage(); y = 20 }
+        row.forEach((p, k) => {
+          const x = m + k * (cellW + gap)
+          try {
+            doc.addImage(p.src, p.fmt, x, y, p.w, p.h)
+          } catch { /* skip unrenderable image */ }
+          if (p.caption) {
+            doc.setFont('helvetica', 'normal').setFontSize(6).setTextColor(...COLOURS.muted)
+            const cap = doc.splitTextToSize(p.caption, cellW)[0] ?? ''
+            doc.text(cap, x, y + p.h + 3)
+          }
+        })
+        y += rowH + 2
       }
     }
     y += 6
