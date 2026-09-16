@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { Resend } from 'resend'
 import { createAdminClient } from '@/lib/supabase'
 import { lookupId, lookupLabel } from '@/lib/lookups'
+import { escapeHtml } from '@/lib/escape-html'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,13 +40,14 @@ function bookingEmailHtml(args: {
   serviceDate: string
   callBackTime: string
 }) {
+  // Every value here comes from a public form — escape before interpolating.
   const row = (k: string, v?: string) => v
-    ? `<tr><td style="padding:6px 0;color:#8B3A2A;width:160px;font-size:12px;">${k}</td><td style="padding:6px 0;color:#2C1F14;font-size:13px;">${v}</td></tr>`
+    ? `<tr><td style="padding:6px 0;color:#8B3A2A;width:160px;font-size:12px;">${escapeHtml(k)}</td><td style="padding:6px 0;color:#2C1F14;font-size:13px;">${escapeHtml(v)}</td></tr>`
     : ''
   return `
     <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;background:#FFF8EE;color:#2C1F14;padding:32px;border-radius:14px;border:1.5px solid rgba(212,134,10,0.35);">
       <p style="color:#D4860A;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;margin:0 0 8px;">3C Core Booking</p>
-      <h2 style="margin:0 0 16px;font-size:20px;font-weight:700;">New ${args.serviceLabel} Request</h2>
+      <h2 style="margin:0 0 16px;font-size:20px;font-weight:700;">New ${escapeHtml(args.serviceLabel)} Request</h2>
       <table style="width:100%;border-collapse:collapse;border-top:1px solid rgba(212,134,10,0.2);padding-top:8px;">
         ${row('Service', args.serviceLabel)}
         ${row('Maintenance Type', args.maintenanceLabel)}
@@ -57,7 +59,7 @@ function bookingEmailHtml(args: {
         ${row('Call-back Time', args.callBackTime)}
       </table>
       <h3 style="margin:18px 0 6px;color:#D4860A;font-size:14px;">Summary / Description</h3>
-      <p style="margin:0;color:#2C1F14;line-height:1.6;font-size:13px;white-space:pre-wrap;">${args.summary}</p>
+      <p style="margin:0;color:#2C1F14;line-height:1.6;font-size:13px;white-space:pre-wrap;">${escapeHtml(args.summary)}</p>
       <hr style="border:none;border-top:1px solid rgba(212,134,10,0.2);margin:20px 0;"/>
       <p style="color:rgba(139,58,42,0.7);font-size:11px;margin:0;">Submitted via 3ccore.com — service booking form</p>
     </div>

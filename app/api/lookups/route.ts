@@ -19,7 +19,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid table' }, { status: 400 })
   }
 
-  const admin = createAdminClient()
+  let admin
+  try {
+    admin = createAdminClient()
+  } catch (err) {
+    console.error('[lookups] Supabase not configured:', err)
+    return NextResponse.json({ error: 'Something went wrong. Please try again.' }, { status: 500 })
+  }
+
   const { data, error } = await admin
     .from(table as never)
     .select('*')
@@ -27,7 +34,8 @@ export async function GET(req: NextRequest) {
     .order('sort_order')
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('[lookups] query failed:', error.message)
+    return NextResponse.json({ error: 'Something went wrong. Please try again.' }, { status: 500 })
   }
 
   return NextResponse.json(data, {
