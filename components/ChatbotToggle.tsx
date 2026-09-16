@@ -51,8 +51,7 @@ export function ChatbotToggle() {
             <h3 className="text-white font-bold font-heading text-lg mb-1">Coming Soon</h3>
             <p className="text-[#F0A830] text-xs uppercase tracking-widest font-medium mb-3">Stay Tuned</p>
             <p className="text-[#B89060] text-sm leading-relaxed mb-5">
-              Our AI assistant will answer your property questions, explain your services, and guide you
-              through the portal — 24/7.
+              We&apos;re building an assistant to answer property questions. Coming soon.
             </p>
 
             <div className="bg-[#2C1F14] rounded-xl border border-[#5C3D28] p-4 text-left space-y-2">

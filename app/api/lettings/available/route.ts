@@ -20,59 +20,6 @@ export interface AvailableListing {
   furnished:          string | null
 }
 
-// Sample listings used when Supabase is unavailable or empty — keeps the page
-// useful for tenants/students even before the lettings table is populated.
-const SAMPLE: AvailableListing[] = [
-  {
-    letting_id: 'sample-1',
-    property_id: 'sample-1',
-    address_line1: '45 Birchwood Close',
-    address_line2: null,
-    city: 'Manchester',
-    postcode: 'M14 6GH',
-    bedrooms: 3,
-    bathrooms: 1,
-    asking_rent: 1600,
-    available_from: null,
-    description: 'Spacious 3-bedroom family home, recently refurbished. Driveway parking, garden. Walking distance to local amenities.',
-    min_tenancy_months: 12,
-    property_type: 'Residential',
-    furnished: 'Part furnished',
-  },
-  {
-    letting_id: 'sample-2',
-    property_id: 'sample-2',
-    address_line1: 'Studio 5, Scholar Place',
-    address_line2: null,
-    city: 'Leeds',
-    postcode: 'LS2 9JT',
-    bedrooms: 1,
-    bathrooms: 1,
-    asking_rent: 680,
-    available_from: null,
-    description: 'All-bills-included studio in popular student area. Aligned with academic year. Wi-Fi, gas, electricity included.',
-    min_tenancy_months: 9,
-    property_type: 'Student',
-    furnished: 'Fully furnished',
-  },
-  {
-    letting_id: 'sample-3',
-    property_id: 'sample-3',
-    address_line1: 'Flat 12, Camden Heights',
-    address_line2: null,
-    city: 'London',
-    postcode: 'NW1 8EP',
-    bedrooms: 1,
-    bathrooms: 1,
-    asking_rent: 1450,
-    available_from: null,
-    description: 'Modern 1-bed flat in central London. Lift access, concierge, gym in building. Short walk to underground.',
-    min_tenancy_months: 6,
-    property_type: 'Residential',
-    furnished: 'Fully furnished',
-  },
-]
-
 interface LettingRow {
   Letting_Id: string
   property_id: string
@@ -129,8 +76,8 @@ export async function GET() {
 
     const { data, error } = await query
     if (error) {
-      console.warn('[lettings] Supabase error, falling back to sample data:', error.message)
-      return NextResponse.json({ listings: SAMPLE, source: 'sample' })
+      console.warn('[lettings] Supabase error:', error.message)
+      return NextResponse.json({ listings: [], source: 'unavailable' })
     }
 
     const rows = (data ?? []) as unknown as LettingRow[]
@@ -153,12 +100,9 @@ export async function GET() {
         furnished:          r.ref_furnished_types?.label ?? null,
       }))
 
-    return NextResponse.json({
-      listings: listings.length > 0 ? listings : SAMPLE,
-      source:   listings.length > 0 ? 'db' : 'sample',
-    })
+    return NextResponse.json({ listings, source: 'db' })
   } catch (err) {
-    console.warn('[lettings] Falling back to sample listings:', err)
-    return NextResponse.json({ listings: SAMPLE, source: 'sample' })
+    console.warn('[lettings] Listings unavailable:', err)
+    return NextResponse.json({ listings: [], source: 'unavailable' })
   }
 }

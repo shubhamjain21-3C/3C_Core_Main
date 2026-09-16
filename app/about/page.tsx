@@ -57,7 +57,7 @@ export default function AboutPage() {
         {/* Coming Soon */}
         <div className="rounded-2xl p-6 mb-10 text-center" style={{ background: 'rgba(45,80,22,0.06)', border: '1px solid rgba(45,80,22,0.2)' }}>
           <h2 className="font-heading font-semibold text-[#2D5016] text-xl mb-2">Coming Soon</h2>
-          <p className="text-sm text-[#2C1F14]">We are continuously expanding our services. Stay tuned for AI-powered inventory tools, subscription plans, and more.</p>
+          <p className="text-sm text-[#2C1F14]">We are continuously expanding our services. Stay tuned for new inventory tools, subscription plans and more.</p>
         </div>
 
         {/* Contact */}

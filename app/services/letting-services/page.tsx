@@ -106,8 +106,8 @@ function LettingServicesContent() {
           <div className="text-center py-14 rounded-2xl"
             style={{ background: 'rgba(255,255,255,0.6)', border: '1px dashed rgba(212,134,10,0.3)' }}>
             <Home size={32} className="text-[#D4860A] mx-auto mb-3" />
-            <p className="text-sm text-[#2C1F14] font-medium">No properties currently listed.</p>
-            <p className="text-xs text-[#8B3A2A] mt-1 mb-4">Schedule a callback and we&apos;ll match you with upcoming lets.</p>
+            <p className="text-sm text-[#2C1F14] font-medium">No properties are listed right now.</p>
+            <p className="text-xs text-[#8B3A2A] mt-1 mb-4">Contact us and we&apos;ll help you search.</p>
             <button
               type="button"
               onClick={() => openCallback()}

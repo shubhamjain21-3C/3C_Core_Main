@@ -11,6 +11,9 @@ import { ServicePageHeader } from '@/components/layout/ServicePageHeader'
 import { CameraCapture } from '@/components/inventory/CameraCapture'
 import type { LookupRow } from '@/types/database'
 
+// AI photo analysis is built but not activated. Flag defaults to off.
+const AI_ENABLED = process.env.NEXT_PUBLIC_AI_ANALYSIS_ENABLED === 'true'
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 interface MediaItem {
@@ -149,6 +152,9 @@ export default function InventoryDIYPage() {
 
 function InventoryDIYContent() {
   const { data: session, status } = useSession()
+  // Guests keep the whole report in the browser: the persistence APIs now
+  // require a session, so we never call them when signed out.
+  const isGuest = status !== 'authenticated'
 
   // ── Lookups ───────────────────────────────────────────────────────────────
   const [reportTypes,    setReportTypes]    = useState<LookupRow[]>([])
@@ -255,7 +261,7 @@ function InventoryDIYContent() {
 
   // Autosave to server when reportId exists + meta changes
   useEffect(() => {
-    if (!meta.reportId) return
+    if (isGuest || !meta.reportId) return
     const id = setTimeout(async () => {
       setAutosaveState('saving')
       try {
@@ -272,7 +278,7 @@ function InventoryDIYContent() {
       } catch { setAutosaveState('error') }
     }, 1200)
     return () => clearTimeout(id)
-  }, [meta])
+  }, [meta, isGuest])
 
   // ── Step 1: create the report ─────────────────────────────────────────────
   async function startReport(e: React.FormEvent) {
@@ -289,6 +295,16 @@ function InventoryDIYContent() {
     }
 
     setCreatingReport(true)
+
+    // Guest: nothing is persisted. Leaving reportId empty makes every
+    // downstream persistence helper a no-op.
+    if (isGuest) {
+      if (rooms.length === 0) setRooms([newRoom('Living Room')])
+      setStep(2)
+      setCreatingReport(false)
+      return
+    }
+
     try {
       const res = await fetch('/api/inventory/reports', {
         method: 'POST',
@@ -353,7 +369,7 @@ function InventoryDIYContent() {
   // Persist a room — call after edits settle (caller controls debouncing)
   async function persistRoom(idx: number): Promise<string | undefined> {
     const r = rooms[idx]
-    if (!r || !meta.reportId) return r?.roomId
+    if (!r || isGuest || !meta.reportId) return r?.roomId
     try {
       const res = await fetch('/api/inventory/rooms', {
         method: 'POST',
@@ -380,6 +396,12 @@ function InventoryDIYContent() {
   // ── Media upload helpers ──────────────────────────────────────────────────
   async function uploadMedia(roomIdx: number, itemIdx: number | null, mediaIdx: number) {
     // Make sure the room is persisted so we have a roomId for the upload path
+    if (isGuest) {
+      // Photo stays in the browser as an object URL and goes into the PDF
+      // payload from there. Nothing is uploaded.
+      patchMedia(roomIdx, itemIdx, mediaIdx, { uploading: false, uploadError: null })
+      return
+    }
     const roomId = rooms[roomIdx]?.roomId ?? await persistRoom(roomIdx)
     if (!roomId || !meta.reportId) {
       patchMedia(roomIdx, itemIdx, mediaIdx, { uploading: false, uploadError: 'Save the report first.' })
@@ -518,7 +540,7 @@ function InventoryDIYContent() {
   async function persistItem(roomIdx: number, itemIdx: number) {
     const room = rooms[roomIdx]
     const item = room?.items[itemIdx]
-    if (!room || !item) return
+    if (!room || !item || isGuest) return
     const roomId = room.roomId ?? await persistRoom(roomIdx)
     if (!roomId) return
     try {
@@ -846,6 +868,18 @@ function InventoryDIYContent() {
         {/* ── STEP 2 — Rooms / media ──────────────────────────────────────── */}
         {step === 2 && (
           <div className="space-y-5">
+            {isGuest && (
+              <div className="rounded-xl p-3 text-xs text-[#8B3A2A] flex items-start gap-2"
+                style={{ background: 'rgba(212,134,10,0.08)', border: '1px solid rgba(212,134,10,0.25)' }}>
+                <LogIn size={13} className="text-[#D4860A] mt-0.5 flex-shrink-0" />
+                <span>
+                  Your photos and notes stay in this browser and are not uploaded.{' '}
+                  <Link href="/portal/login?role=property_manager" className="text-[#D4860A] underline">Log in</Link>{' '}
+                  to save this report to your portal.
+                </span>
+              </div>
+            )}
+
             <div className="flex items-center justify-between gap-2">
               <div>
                 <h2 className="font-heading font-semibold text-[#D4860A] text-xl">Rooms &amp; Media</h2>
@@ -899,7 +933,7 @@ function InventoryDIYContent() {
 
             {!hasUploads && rooms.length > 0 && (
               <p className="text-xs text-center text-[#8B3A2A]/70">
-                Add at least one photo or note per room — you can still proceed without media but the AI analysis will be limited.
+                Add at least one photo or note per room — you can still proceed without media, but your report will have less detail.
               </p>
             )}
 
@@ -917,11 +951,11 @@ function InventoryDIYContent() {
           </div>
         )}
 
-        {/* ── STEP 3 — Review + AI analysis ──────────────────────────────── */}
+        {/* ── STEP 3 — Review ────────────────────────────────────────────── */}
         {step === 3 && (
           <div className="space-y-5">
             <div className="flex items-center justify-between gap-2">
-              <h2 className="font-heading font-semibold text-[#D4860A] text-xl">Review &amp; Analyse</h2>
+              <h2 className="font-heading font-semibold text-[#D4860A] text-xl">{AI_ENABLED ? 'Review &amp; Analyse' : 'Review'}</h2>
               <button type="button" onClick={() => setStep(2)} className={btnGhost}>
                 <ArrowLeft size={14} /> Edit rooms
               </button>
@@ -1004,11 +1038,12 @@ function InventoryDIYContent() {
               })}
             </div>
 
-            {analysisStubbed && analysisResult && (
-              <div className="rounded-xl p-3 text-xs text-[#8B3A2A] inline-flex items-start gap-2"
+            {(!AI_ENABLED || analysisStubbed) && (
+              <div className="rounded-xl p-3 text-xs text-[#8B3A2A] flex items-start gap-2"
                 style={{ background: 'rgba(212,134,10,0.08)', border: '1px solid rgba(212,134,10,0.25)' }}>
                 <AlertTriangle size={13} className="text-[#D4860A] mt-0.5 flex-shrink-0" />
-                AI analysis is currently disabled. The report will be generated from your captured data only — enable AI later for richer auto-descriptions.
+                AI analysis is not yet available. Your report is built from the photos and notes you
+                entered yourself — nothing is written or assessed automatically.
               </div>
             )}
 
@@ -1020,17 +1055,19 @@ function InventoryDIYContent() {
             )}
 
             <div className="flex flex-col sm:flex-row gap-2">
-              <button
-                type="button"
-                onClick={runAnalysis}
-                disabled={analysing}
-                className={btnPrimary + ' flex-1'}
-                style={{ background: analysing ? '#aaa' : '#D4860A' }}
-              >
-                {analysing
-                  ? <><Loader2 size={14} className="animate-spin" /> Analysing…</>
-                  : <><Sparkles size={14} /> {analysisResult ? 'Re-run AI Analysis' : 'Generate Report with AI'}</>}
-              </button>
+              {AI_ENABLED && (
+                <button
+                  type="button"
+                  onClick={runAnalysis}
+                  disabled={analysing}
+                  className={btnPrimary + ' flex-1'}
+                  style={{ background: analysing ? '#aaa' : '#D4860A' }}
+                >
+                  {analysing
+                    ? <><Loader2 size={14} className="animate-spin" /> Analysing…</>
+                    : <><Sparkles size={14} /> {analysisResult ? 'Re-run AI Analysis' : 'Generate Report with AI'}</>}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setStep(4)}

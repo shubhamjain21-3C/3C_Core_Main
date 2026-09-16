@@ -35,7 +35,7 @@ function InventoryChooser() {
             Inventory Management
           </h1>
           <p className="mt-2 text-[#8B3A2A] text-base sm:text-lg">
-            Professional property inventories — legally sound, digitally delivered
+            Professional property inventories — clear, timestamped, digitally delivered
           </p>
         </div>
       </div>
@@ -49,7 +49,7 @@ function InventoryChooser() {
         </Link>
 
         <p className="text-center text-[#2C1F14] text-sm mb-8 max-w-xl mx-auto leading-relaxed">
-          How would you like to create your inventory report? You can build it yourself with our AI
+          How would you like to create your inventory report? You can build it yourself with our online
           tool, or book a qualified inventory agent to attend the property.
         </p>
 
@@ -79,7 +79,7 @@ function InventoryChooser() {
             </div>
             <h2 className="font-heading font-semibold text-[#2C1F14] text-lg mb-2">Do It Yourself</h2>
             <p className="text-sm text-[#8B3A2A] leading-relaxed mb-4">
-              Upload room photos and notes — our AI builds a professional, legally sound report you can review and download as a PDF.
+              Add room photos and notes, review everything, and download a professional PDF report. AI-assisted write-up is coming soon.
             </p>
             <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#D4860A]">
               Start a report <ArrowRight size={14} />
@@ -111,7 +111,7 @@ function InventoryChooser() {
             </div>
             <h2 className="font-heading font-semibold text-[#2C1F14] text-lg mb-2">Book an Agent</h2>
             <p className="text-sm text-[#8B3A2A] leading-relaxed mb-4">
-              A qualified inventory agent attends the property and delivers a full written report with timestamped photos — legally defensible.
+              A qualified inventory agent attends the property and delivers a full written report with timestamped photos.
             </p>
             <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#D4860A]">
               Book an agent <ArrowRight size={14} />
