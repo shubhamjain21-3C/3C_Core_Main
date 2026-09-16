@@ -1,9 +1,15 @@
 import { NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { AI_ANALYSIS_ENABLED, hasAnthropicKey, CLAUDE_MODEL } from '@/lib/anthropic'
+import { requireSession, badRequest } from '@/lib/api-auth'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
+
+// Limits for the live Claude path — this endpoint costs money per call.
+const MAX_ROOMS_PER_REQUEST  = 20
+const MAX_IMAGES_PER_ROOM    = 8
+const MAX_DATA_URI_BYTES     = 5 * 1024 * 1024 // 5 MB per inline image
 
 // ── Prompt template — kept here for easy iteration ─────────────────────────
 const INVENTORY_PROMPT = `You are a professional UK property inventory clerk. Analyse the provided property photos and produce a detailed, professional inventory condition report.
@@ -57,7 +63,7 @@ function stubAnalysis(rooms: RoomPayload[]): AnalysedRoom[] {
     room_name:    r.name,
     room_summary: r.notes?.length
       ? r.notes.join(' ').slice(0, 240)
-      : 'AI analysis is currently disabled. Captured media and notes have been saved and can be reviewed manually.',
+      : 'AI analysis is not yet available. This summary uses only the notes you entered.',
     overall_condition: 'good',
     items: [],
   }))
@@ -91,18 +97,26 @@ export async function POST(req: Request) {
     const rooms = body.rooms ?? []
 
     if (!Array.isArray(rooms) || rooms.length === 0) {
-      return NextResponse.json({ error: 'No rooms supplied.' }, { status: 400 })
+      return badRequest('No rooms supplied.')
     }
 
-    // ── Feature-flag stub: keeps the DIY flow working without an API key ──
+    // ── Feature-flag stub ────────────────────────────────────────────────────
+    // The stub costs nothing and touches no customer data, so it stays open to
+    // guests and keeps the DIY flow working. It must not imply AI ran.
     if (!AI_ANALYSIS_ENABLED || !hasAnthropicKey) {
       return NextResponse.json({
         analysis:   stubAnalysis(rooms),
         stubbed:    true,
-        message:    AI_ANALYSIS_ENABLED
-          ? 'AI analysis is enabled but ANTHROPIC_API_KEY is missing — returning a stubbed report.'
-          : 'AI analysis is disabled. Set NEXT_PUBLIC_AI_ANALYSIS_ENABLED=true (and ANTHROPIC_API_KEY on the server) to enable Claude-powered reports.',
+        message:    'AI analysis is not yet available. Your report uses the photos and notes you entered yourself.',
       })
+    }
+
+    // ── Beyond this point we call a paid API: require a session ──────────────
+    const auth = await requireSession()
+    if ('response' in auth) return auth.response
+
+    if (rooms.length > MAX_ROOMS_PER_REQUEST) {
+      return badRequest('Too many rooms in one request.')
     }
 
     // ── Live Claude call ─────────────────────────────────────────────────────
@@ -115,14 +129,17 @@ export async function POST(req: Request) {
 
     for (const room of rooms) {
       const imageSources = (room.mediaUrls ?? [])
+        .slice(0, MAX_IMAGES_PER_ROOM)
         .filter(url => isImageUrl(url) || isImageDataUri(url) || url.includes('/storage/v1/object/'))
+        // Reject oversized inline images before they reach the provider.
+        .filter(url => !isImageDataUri(url) || url.length <= MAX_DATA_URI_BYTES)
         .map(parseImageSource)
         .filter((s): s is ImageSource => s !== null)
 
       if (imageSources.length === 0) {
         analysisResults.push({
           room_name:         room.name,
-          room_summary:      'No images provided for AI analysis.',
+          room_summary:      'No images were provided for this room.',
           overall_condition: 'good',
           items:             [],
         })
@@ -174,8 +191,11 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ analysis: analysisResults, stubbed: false })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    console.error('[inventory.analyse] error:', msg)
-    return NextResponse.json({ error: msg }, { status: 500 })
+    // Never surface provider messages to the browser.
+    console.error('[inventory.analyse] error:', err)
+    return NextResponse.json(
+      { error: 'Something went wrong. Please try again.' },
+      { status: 500 },
+    )
   }
 }
