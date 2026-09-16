@@ -70,3 +70,32 @@ Wait 10–60 min for propagation. SSL auto-provisioned by Vercel ✅
 | GitHub | Already have ✅ | Free |
 | SSL | Auto via Vercel | Free |
 | DNS | GoDaddy A record | Free |
+
+
+---
+
+## Function region (added 16 Sep 2026)
+
+`vercel.json` pins serverless functions to London:
+
+```json
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "regions": ["lhr1"]
+}
+```
+
+Without this, Vercel functions default to Washington DC (`iad1`). They handle UK
+tenant and landlord personal data, so the region belongs in the repository
+rather than in dashboard settings that nobody can audit.
+
+Verify after deploying: the Vercel deployment summary lists the function region,
+and `GET /api/health` echoes `VERCEL_REGION`.
+
+## Health check
+
+`GET /api/health` → `{ "status": "ok", "db": "ok" | "unavailable", "region": "lhr1" }`
+
+No authentication, `Cache-Control: no-store`, and deliberately no error detail.
+Always HTTP 200 so an uptime check can tell "app up, database down" from
+"app down".

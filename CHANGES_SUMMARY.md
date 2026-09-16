@@ -343,3 +343,55 @@ Per-service routing:
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | when Stripe goes live |
 | `STRIPE_SECRET_KEY` | **Sensitive** — when Stripe goes live |
 | `STRIPE_WEBHOOK_SECRET` | **Sensitive** — when Stripe goes live |
+
+---
+
+## Batch 10 — Submission readiness (16 Sep 2026)
+
+Branch `fix/submission-readiness`. Three themes: remove untrue content, close the
+open API surface, and pin hosting to the UK.
+
+### Removed template content
+
+The site was built from a template whose placeholder marketing copy had never
+been replaced. None of it was true, so all of it is gone rather than restated
+with different numbers.
+
+| Removed | Was |
+|---|---|
+| `app/portfolio/**`, `data/caseStudies.ts` | Invented case studies ("Real results for real clients"). `/portfolio` now redirects to `/services`. |
+| Stats strip on `/services` | "1,000+ Reports Generated · 50,000+ Items Catalogued · Under 3 mins Avg Report Time" |
+| `STATS` in `lib/constants.ts` | "250+ Properties Managed · 15+ Years Experience · 180+ Happy Landlords · 96% Tenant Satisfaction" — the company was incorporated in Feb 2026 |
+| `data/testimonials.ts`, `components/home/Testimonials.tsx` | Fabricated customer quotes |
+| `data/team.ts`, `components/about/TeamGrid.tsx`, `CompanyTimeline.tsx` | Invented staff and a company history starting in 2009 |
+| `app/services/[slug]`, six template services in `data/services.ts` | Rent collection, 24/7 emergency response, investment advisory, lettings consultancy, tenant relations, compliance — none of which 3C Core offers. Old slugs redirect to `/services`. |
+| `SAMPLE` in `app/api/lettings/available/route.ts` | Three fictional addresses shown as real listings whenever the database was unreachable |
+| App Store / Google Play badges on `/download-app` | No app exists |
+| Unused components: `StatsSection`, `CTABanner`, `HeroSection`, `ServicesPreview`, `WhyUs`, `MissionVision`, `CircuitDecor`, `Badge`, `ServiceCard` | Orphaned once the above were removed |
+
+`data/services.ts` now lists only the six real services, each mapping to a page
+that exists. `components/layout/Footer.tsx` and the portal property pages read
+from it, so footer links can no longer point at pages that 404.
+
+### Reworded claims
+
+- Inventory page: "legally sound" / "legally defensible" removed; "our AI tool"
+  → "our online tool".
+- DIY wizard: when `NEXT_PUBLIC_AI_ANALYSIS_ENABLED` is off (always, today) the
+  review step states plainly that AI analysis is not yet available and the
+  report uses the user's own notes. The "Generate Report with AI" button is
+  hidden entirely rather than producing a stub that looks like AI output.
+- About page: "AI-powered inventory tools" → "new inventory tools".
+- Chatbot widget: "Our AI assistant will…" → "We're building an assistant to
+  answer property questions. Coming soon."
+- Inventory PDF header now prints the registered office from `COMPANY.address`
+  instead of a Derby address the company has never traded from.
+
+### Security
+
+See `ARCHITECTURE.md` → Authorisation, and the fix report.
+
+### Hosting
+
+`vercel.json` pins functions to `lhr1` (London). New `GET /api/health` reports
+`{ status, db, region }` with no error detail.

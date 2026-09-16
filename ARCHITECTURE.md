@@ -426,14 +426,52 @@ DIY Inventory
 
 ---
 
+## 9a. API authorisation (added 16 Sep 2026)
+
+`middleware.ts` protects `/portal/*` **pages only**. It never runs for
+`/api/*`, so each route checks its own session.
+
+Helpers:
+
+| Module | Purpose |
+|---|---|
+| `lib/api-auth.ts` | `requireSession()`, `requireAdmin()`, `sessionUserUuid()`, and the generic `badRequest` / `forbidden` / `serverError` responses |
+| `lib/inventory-auth.ts` | Ownership chain `inventory_items.room_id → inventory_rooms."InventoryReport_id" → inventory_reports."User_Id"` |
+| `lib/normalise-email.ts` | `normaliseEmail()` — trim + lowercase, used on every identity lookup and write |
+| `lib/escape-html.ts` | `escapeHtml()` for user text in HTML email bodies |
+
+Route matrix:
+
+| Route | Anonymous | Notes |
+|---|---|---|
+| `POST/PATCH /api/inventory/reports` | 401 | `User_Id` is now written on create, establishing ownership |
+| `POST/DELETE /api/inventory/rooms` | 401 | Room must hang off a report the caller owns |
+| `POST/DELETE /api/inventory/items` | 401 | Item → room → report ownership |
+| `POST/DELETE /api/inventory/upload` | 401 | Delete restricted to storage paths under the caller's own report; MIME allow-list on upload |
+| `POST /api/inventory/analyse` | 200 stub / 401 live | The free stub stays public; the paid Claude path requires a session and caps rooms and images |
+| `POST /api/inventory/generate-pdf` | 200 (bytes only) | Guests get the PDF back but nothing is written to storage; payload size capped |
+| `POST /api/payments/create-intent` | 503 | Requires `PAYMENTS_ENABLED=true` **and** a session; amount resolved server-side, request body `amount` ignored |
+| `GET /api/health` | 200 | Public by design, no error detail |
+
+Two consequences worth knowing:
+
+- **Guest DIY flow.** Because the persistence routes now require a session, the
+  DIY wizard detects a signed-out visitor and keeps the whole report in the
+  browser — no report/room/item/upload calls at all. The PDF still downloads.
+  A banner says the work is not being saved.
+- **Pre-existing reports.** Rows created before this change have a null
+  `User_Id` and are therefore owned by nobody. Only an admin can modify them.
+
 ## 10. Known limitations / next steps
 
 - **NextAuth ↔ Supabase user mapping (BLOCKER 2).** Customer sessions live in NextAuth JWTs with synthetic IDs (`user-shubham-pm`) for seeded demos. Real customers now use `User_id` UUIDs from `public.users.User_id` (after the Batch 5 persistence work). Inventory rows still write `NULL` to FK columns because that path predates the unification.
-- **In-memory user store.** Still used for the 9 seeded demo accounts (Shubham/Irfan/Adamya × roles) — they don't have Supabase Auth records. Real customers persist to `public.users`.
+- **In-memory user store.** The 9 seeded demo accounts (Shubham/Irfan/Adamya × roles) are now seeded **only** when `ENABLE_DEMO_ACCOUNTS=true`. With the flag unset — which is the case in production — `lib/store.ts` starts empty, demo credentials cannot log in, and the portal pages render empty states instead of fictional properties. Real customers persist to `public.users`.
 - **Password hashing.** bcrypt (cost 12) via `bcryptjs`. Legacy SHA-256 hashes (any pre-bcrypt customer) are detected at login and lazily re-hashed to bcrypt. The 9 seeded demos still use SHA-256 — they're in-code only and verified through the same lib/store.verifyPassword path.
 - **Phone OTP** — code path is implemented but gated. Connect Twilio/MessageBird in Supabase Auth → Providers → Phone, then flip `NEXT_PUBLIC_PHONE_OTP_ENABLED=true`.
-- **AI analysis** — flag-gated stub. Adds `ANTHROPIC_API_KEY` and flips `NEXT_PUBLIC_AI_ANALYSIS_ENABLED=true` to enable live Claude calls.
-- **Stripe** — routes scaffolded but no live keys.
+- **AI analysis** — flag-gated stub, off everywhere. The DIY review step says so in plain words and hides the "Generate Report with AI" button. Add `ANTHROPIC_API_KEY` and set `NEXT_PUBLIC_AI_ANALYSIS_ENABLED=true` to enable live Claude calls; the live path then requires a session.
+- **Stripe** — routes scaffolded, no live keys, and now double-gated: `/api/payments/create-intent` returns 503 unless `PAYMENTS_ENABLED=true`, then requires a session. `SERVICE_PRICES_PENCE` in that route is intentionally empty until the director signs off online prices.
 - **Chat scaffolding** — `chat_conversations` / `chat_messages` tables exist; widget UI shows "Coming Soon".
-- **Download App page** — `/download-app` page with iOS/Android toggle exists; App Store and Google Play URLs are placeholders (`#`) until the app is published.
+- **Download App page** — `/download-app` now states that the mobile app is planned. The iOS/Android toggle and the placeholder store links were removed, because a store badge implies a listing that does not exist.
+- **Hosting region** — `vercel.json` pins functions to `lhr1` (London). Before this, functions defaulted to Washington DC, which mattered because they handle UK personal data.
+- **Rate limiting** — none. `/api/auth/otp/send`, `/api/auth/check-email`, `/api/contact` and `/api/service-bookings` are unthrottled, and `check-email` still discloses whether an address is registered. Recommended fix is Vercel WAF rules; recorded as a known risk.
 - **Portal roles** — `ref_portal_roles` now includes: property_manager (1), landlord (2), tenant (3), student (4), admin (5), others (6). The "Others" role sees all services.
