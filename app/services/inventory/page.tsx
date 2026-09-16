@@ -35,7 +35,7 @@ function InventoryChooser() {
             Inventory Management
           </h1>
           <p className="mt-2 text-[#8B3A2A] text-base sm:text-lg">
-            Professional property inventories — clear, timestamped, digitally delivered
+            Professional property inventories — clear, structured, digitally delivered
           </p>
         </div>
       </div>
