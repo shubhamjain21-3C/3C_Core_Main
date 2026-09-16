@@ -2,7 +2,11 @@
  * In-memory data store — DEMO / PROTOTYPE ONLY
  * ─────────────────────────────────────────────
  * 9 test users: Shubham, Irfan & Adamya × 3 roles (property_manager, tenant, student)
- * Passwords: Shubham@123 | Irfan@123 | Adamya@123
+ *
+ * The demo users, properties and services below are seeded ONLY when
+ * ENABLE_DEMO_ACCOUNTS === 'true'. The flag is never set in production, so the
+ * store starts empty there: demo credentials cannot log in and the portals show
+ * empty states instead of fictional data.
  */
 
 import { createHash } from 'crypto'
@@ -25,6 +29,12 @@ const legacyHash = (pw: string) =>
   createHash('sha256').update(pw + 'salt_3ccore').digest('hex')
 
 const BCRYPT_COST = 12
+
+/**
+ * Demo seed switch. Default OFF — set ENABLE_DEMO_ACCOUNTS=true in local/dev
+ * environments only. Must never be set on Vercel Production.
+ */
+export const ENABLE_DEMO_ACCOUNTS = process.env.ENABLE_DEMO_ACCOUNTS === 'true'
 
 export async function hashPassword(pw: string): Promise<string> {
   return bcrypt.hash(pw, BCRYPT_COST)
@@ -57,7 +67,7 @@ export const hash = legacyHash
 
 // ── Users ──────────────────────────────────────────────────────────────────────
 
-export const users = new Map<string, PortalUser>([
+const demoUsers: Array<[string, PortalUser]> = [
 
   // ── Property Managers ──────────────────────────────────────────────────────
   ['user-shubham-pm', {
@@ -157,7 +167,9 @@ export const users = new Map<string, PortalUser>([
     phone: '+44 7700 000009',
     createdAt: '2024-03-10',
   }],
-])
+]
+
+export const users = new Map<string, PortalUser>(ENABLE_DEMO_ACCOUNTS ? demoUsers : [])
 
 export const findUserByEmail = (email: string) =>
   Array.from(users.values()).find(u => u.email.toLowerCase() === email.toLowerCase()) ?? null
@@ -180,7 +192,7 @@ export const updateUserPasswordByEmail = (email: string, passwordHash: string): 
 
 // ── Properties ────────────────────────────────────────────────────────────────
 
-export const properties = new Map<string, Property>([
+const demoProperties: Array<[string, Property]> = [
 
   // Shubham PM — 3 properties
   ['prop-1', {
@@ -283,7 +295,9 @@ export const properties = new Map<string, Property>([
     status: 'Occupied', serviceIds: ['tenant-relations'],
     createdAt: '2024-03-10',
   }],
-])
+]
+
+export const properties = new Map<string, Property>(ENABLE_DEMO_ACCOUNTS ? demoProperties : [])
 
 export const getPropertiesByCustomer = (customerId: string) =>
   Array.from(properties.values()).filter(p => p.customerId === customerId)
@@ -299,7 +313,7 @@ export const deleteProperty = (id: string) => properties.delete(id)
 
 // ── Customer Services ─────────────────────────────────────────────────────────
 
-export const customerServices = new Map<string, CustomerService>([
+const demoCustomerServices: Array<[string, CustomerService]> = [
 
   // Shubham PM
   ['svc-1', {
@@ -383,7 +397,11 @@ export const customerServices = new Map<string, CustomerService>([
     serviceName: 'Tenant Relations', startDate: '2024-03-10', status: 'Active',
     benefits: ['Room condition documented with photos at check-in', 'Internet fault resolved same day via landlord escalation'],
   }],
-])
+]
+
+export const customerServices = new Map<string, CustomerService>(
+  ENABLE_DEMO_ACCOUNTS ? demoCustomerServices : [],
+)
 
 export const getServicesByCustomer = (customerId: string) =>
   Array.from(customerServices.values()).filter(s => s.customerId === customerId)
