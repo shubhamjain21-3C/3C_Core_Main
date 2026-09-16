@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { isFullyRegistered } from '@/lib/email-exists'
+import { normaliseEmail } from '@/lib/normalise-email'
 
 export const dynamic = 'force-dynamic'
 
 // Lightweight existence check used by the registration form to fail fast
 // before sending an OTP for an email that already has an account.
 const schema = z.object({
-  email: z.string().email(),
+  email: z.string().email().transform(normaliseEmail),
 })
 
 export async function POST(req: Request) {

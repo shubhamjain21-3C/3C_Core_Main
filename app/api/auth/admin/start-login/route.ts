@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSupabaseClient } from '@/lib/supabase'
+import { normaliseEmail } from '@/lib/normalise-email'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,7 +10,7 @@ export const dynamic = 'force-dynamic'
 // (verifying the code) is handled by the NextAuth `admin-login` provider.
 
 const schema = z.object({
-  email:    z.string().email(),
+  email:    z.string().email().transform(normaliseEmail),
   password: z.string().min(1),
 })
 
