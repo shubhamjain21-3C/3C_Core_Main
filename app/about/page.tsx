@@ -30,7 +30,7 @@ export default function AboutPage() {
           </ul>
           <div className="text-sm text-[#8B3A2A] space-y-0.5">
             <p>Registered in England and Wales · Companies House No: 17050206</p>
-            <p>Registered Address: 60 Tottenham Court Road, Office 818, London, W1T 2EW, England</p>
+            <p>Registered Address: 60 Tottenham Court Road, London, England, W1T 2EW</p>
           </div>
         </div>
 
@@ -66,7 +66,7 @@ export default function AboutPage() {
           <div className="space-y-2 text-sm text-[#2C1F14]">
             <p className="flex items-center gap-2"><Mail size={14} className="text-[#D4860A] shrink-0" /><a href="mailto:contactus@3ccore.com" className="text-[#D4860A] underline">contactus@3ccore.com</a></p>
             <p className="flex items-center gap-2"><Phone size={14} className="text-[#D4860A] shrink-0" /><a href="tel:07852254792" className="text-[#D4860A] underline">07852254792</a></p>
-            <p className="flex items-start gap-2"><MapPin size={14} className="text-[#D4860A] shrink-0 mt-0.5" />60 Tottenham Court Road, Office 818, London, W1T 2EW, England</p>
+            <p className="flex items-start gap-2"><MapPin size={14} className="text-[#D4860A] shrink-0 mt-0.5" />60 Tottenham Court Road, London, England, W1T 2EW</p>
           </div>
         </div>
       </div>

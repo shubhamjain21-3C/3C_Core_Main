@@ -92,8 +92,8 @@ function buildPdf(data: z.infer<typeof pdfSchema>) {
   doc.setFontSize(7).setTextColor(255, 255, 255)
   // Registered office, from the single source of truth in lib/constants.ts
   const addressLines = COMPANY.address.split(', ')
-  doc.text(addressLines.slice(0, 2).join(', ') + ',', pw - m, 12, { align: 'right' })
-  doc.text(addressLines.slice(2).join(', '), pw - m, 17, { align: 'right' })
+  doc.text(addressLines.slice(0, 1).join(', ') + ',', pw - m, 12, { align: 'right' })
+  doc.text(addressLines.slice(1).join(', '), pw - m, 17, { align: 'right' })
   doc.text(`${COMPANY.email}  ·  3ccore.com`, pw - m, 22, { align: 'right' })
 
   let y = 42

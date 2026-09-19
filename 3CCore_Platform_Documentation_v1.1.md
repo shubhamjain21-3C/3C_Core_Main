@@ -338,5 +338,5 @@ The entire website and portal use a single, consistent Amber/Gold colour palette
 
 ---
 
-*3C Core Ltd. · 60 Tottenham Court Road, Office 818, London, W1T 2EW, England*
+*3C Core Ltd. · 60 Tottenham Court Road, London, England, W1T 2EW*
 *Connected · Consistent · Confident · 3ccore.com · contactus@3ccore.com*
