@@ -111,7 +111,7 @@ function InventoryChooser() {
             </div>
             <h2 className="font-heading font-semibold text-[#2C1F14] text-lg mb-2">Book an Agent</h2>
             <p className="text-sm text-[#8B3A2A] leading-relaxed mb-4">
-              A qualified inventory agent attends the property and delivers a full written report with timestamped photos.
+              A qualified inventory agent attends the property and delivers a full written report with photos.
             </p>
             <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#D4860A]">
               Book an agent <ArrowRight size={14} />
