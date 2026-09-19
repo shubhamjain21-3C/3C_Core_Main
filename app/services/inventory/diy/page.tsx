@@ -1340,7 +1340,7 @@ function RoomCard(props: RoomCardProps) {
                 onBlur={props.onPersist}
                 className={inputCls}
               >
-                <option value="">Set by AI</option>
+                <option value="">{AI_ENABLED ? 'Set by AI' : 'Select a condition'}</option>
                 {conditionLevels.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
               </select>
             </div>
