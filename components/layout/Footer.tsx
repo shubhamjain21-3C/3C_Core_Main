@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import { MapPin, Phone, Mail, Linkedin, Twitter, Facebook } from 'lucide-react'
+import { MapPin, Phone, Mail } from 'lucide-react'
 import { NAV_LINKS, COMPANY_PHONE, COMPANY_EMAIL, COMPANY_ADDRESS } from '@/lib/constants'
 import { services } from '@/data/services'
 
@@ -24,18 +24,6 @@ export function Footer() {
             <p className="text-[#B89060] text-sm leading-relaxed mb-6">
               Professional property management built on trust, precision, and lasting results.
             </p>
-            <div className="flex gap-3">
-              {[
-                { Icon: Linkedin, href: '#', label: 'LinkedIn' },
-                { Icon: Twitter,  href: '#', label: 'Twitter'  },
-                { Icon: Facebook, href: '#', label: 'Facebook' },
-              ].map(({ Icon, href, label }) => (
-                <a key={label} href={href} aria-label={label}
-                   className="w-9 h-9 border border-[#5C3D28] rounded flex items-center justify-center text-[#B89060] hover:border-[#D4860A] hover:text-[#F0A830] transition-colors duration-200">
-                  <Icon size={15} />
-                </a>
-              ))}
-            </div>
           </div>
 
           {/* Navigation */}
@@ -90,9 +78,9 @@ export function Footer() {
         <div className="mt-12 pt-8 border-t border-[#5C3D28] flex flex-col sm:flex-row justify-between items-center gap-4">
           <p className="text-[#D4860A] text-xs">© {new Date().getFullYear()} 3C Core Ltd. All rights reserved.</p>
           <div className="flex gap-6 text-xs text-[#D4860A]">
-            <Link href="#" className="hover:text-[#B89060] transition-colors">Privacy Policy</Link>
-            <Link href="#" className="hover:text-[#B89060] transition-colors">Terms of Use</Link>
-            <Link href="#" className="hover:text-[#B89060] transition-colors">Cookie Policy</Link>
+            <Link href="/legal/privacy-and-terms" className="hover:text-[#B89060] transition-colors">Privacy Policy</Link>
+            <Link href="/legal/privacy-and-terms" className="hover:text-[#B89060] transition-colors">Terms of Use</Link>
+            <Link href="/legal/cookies" className="hover:text-[#B89060] transition-colors">Cookie Policy</Link>
           </div>
         </div>
       </div>
