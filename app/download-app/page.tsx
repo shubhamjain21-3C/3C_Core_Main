@@ -1,11 +1,9 @@
 'use client'
-import { useState } from 'react'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { ArrowLeft, Smartphone } from 'lucide-react'
 
 export default function DownloadAppPage() {
-  const [platform, setPlatform] = useState<'ios' | 'android'>('ios')
 
   return (
     <div
@@ -58,52 +56,12 @@ export default function DownloadAppPage() {
               <Smartphone size={28} style={{ color: '#F0A830' }} />
             </div>
 
-            <h2 className="font-heading font-bold text-white text-2xl mb-2">Get the App</h2>
-            <p className="text-white/60 text-sm mb-6 leading-relaxed">
-              Download the 3C Core app for a seamless property management experience on the go.
+            <h2 className="font-heading font-bold text-white text-2xl mb-2">Mobile app</h2>
+            <p className="text-white/60 text-sm leading-relaxed">
+              Planned. We&apos;ll announce it here when it&apos;s available.
             </p>
-
-            {/* Platform toggle */}
-            <div
-              className="flex rounded-xl p-1 mb-6 mx-auto max-w-xs"
-              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(240,168,48,0.25)' }}
-            >
-              <button
-                onClick={() => setPlatform('ios')}
-                className="flex-1 py-2.5 rounded-lg text-sm font-medium transition-all duration-200"
-                style={{
-                  background: platform === 'ios' ? '#D4860A' : 'transparent',
-                  color: platform === 'ios' ? 'white' : 'rgba(255,255,255,0.5)',
-                }}
-              >
-                App Store
-              </button>
-              <button
-                onClick={() => setPlatform('android')}
-                className="flex-1 py-2.5 rounded-lg text-sm font-medium transition-all duration-200"
-                style={{
-                  background: platform === 'android' ? '#D4860A' : 'transparent',
-                  color: platform === 'android' ? 'white' : 'rgba(255,255,255,0.5)',
-                }}
-              >
-                Google Play
-              </button>
-            </div>
-
-            {/* Download button */}
-            <a
-              href="#"
-              onClick={e => e.preventDefault()}
-              className="block w-full py-4 rounded-xl font-semibold text-white text-sm text-center transition-all"
-              style={{ background: '#D4860A', border: '1.5px solid #D4860A' }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#F0A830' }}
-              onMouseLeave={e => { e.currentTarget.style.background = '#D4860A' }}
-            >
-              {platform === 'ios' ? 'Download on the App Store' : 'Get it on Google Play'}
-            </a>
-
             <p className="text-white/40 text-xs mt-4">
-              Coming soon — links will be updated once the app is published.
+              In the meantime, everything works in your browser at 3ccore.com.
             </p>
           </div>
         </motion.div>

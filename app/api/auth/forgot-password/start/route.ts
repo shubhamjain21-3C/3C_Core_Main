@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSupabaseClient } from '@/lib/supabase'
 import { isFullyRegistered } from '@/lib/email-exists'
+import { normaliseEmail } from '@/lib/normalise-email'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,7 +11,7 @@ export const dynamic = 'force-dynamic'
 // is registered, so attackers can't probe for valid accounts.
 
 const schema = z.object({
-  email: z.string().email(),
+  email: z.string().email().transform(normaliseEmail),
 })
 
 function maskEmail(email: string) {
@@ -55,7 +56,10 @@ export async function POST(req: Request) {
       const isRateLimit = /rate|too many|seconds/i.test(error.message)
       // Bubble rate limits up to the UI so the user knows to wait
       if (isRateLimit) {
-        return NextResponse.json({ success: false, message: error.message }, { status: 429 })
+        return NextResponse.json(
+          { success: false, message: 'Too many attempts. Please wait a minute and try again.' },
+          { status: 429 },
+        )
       }
       console.error('[forgot-password.start] Supabase error:', error.message)
       // Otherwise still return success to avoid leaking info

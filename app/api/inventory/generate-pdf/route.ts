@@ -2,9 +2,26 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { jsPDF } from 'jspdf'
 import { createAdminClient } from '@/lib/supabase'
+import { COMPANY } from '@/lib/constants'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { checkReportAccess } from '@/lib/inventory-auth'
 
 export const dynamic = 'force-dynamic'
 export const runtime  = 'nodejs'
+
+// ── Limits ──────────────────────────────────────────────────────────────────
+// PDF generation is CPU-heavy and reachable by guests, so cap the payload.
+const MAX_ROOMS            = 60
+const MAX_ITEMS_PER_ROOM   = 200
+const MAX_IMAGES_PER_ROOM  = 40
+const MAX_IMAGES_TOTAL     = 60
+// One compressed photo as a base64 data URI (~500 KB of image data).
+const MAX_IMAGE_CHARS      = 700_000
+
+// Photos arrive as inline JPEG/PNG data URIs, compressed in the browser. The
+// server never fetches a URL on the caller's behalf, so there is no SSRF path.
+const IMAGE_DATA_URI_RE = /^data:image\/(jpeg|png);base64,/
 
 // ── Schema ──────────────────────────────────────────────────────────────────
 const roomSchema = z.object({
@@ -17,9 +34,10 @@ const roomSchema = z.object({
     item_name:   z.string(),
     condition:   z.string().optional(),
     description: z.string().optional(),
-    concerns:    z.string().optional(),
-  })).default([]),
-  imageUrls: z.array(z.string()).default([]),
+    concerns:    z.string().max(5000).optional(),
+  })).max(MAX_ITEMS_PER_ROOM).default([]),
+  imageUrls: z.array(z.string().max(MAX_IMAGE_CHARS)).max(MAX_IMAGES_PER_ROOM).default([]),
+  imageCaptions: z.array(z.string().max(200)).max(MAX_IMAGES_PER_ROOM).default([]),
 })
 
 const pdfSchema = z.object({
@@ -29,8 +47,11 @@ const pdfSchema = z.object({
   inspectionDate:  z.string().default(''),
   inspectorName:   z.string().default(''),
   preparedBy:      z.string().default(''),
-  rooms:           z.array(roomSchema).default([]),
-})
+  rooms:           z.array(roomSchema).max(MAX_ROOMS).default([]),
+}).refine(
+  d => d.rooms.reduce((n, r) => n + r.imageUrls.length, 0) <= MAX_IMAGES_TOTAL,
+  { message: 'Too many photos.' },
+)
 
 // Colour palette — keep aligned with the amber/gold brand
 const COLOURS = {
@@ -69,9 +90,11 @@ function buildPdf(data: z.infer<typeof pdfSchema>) {
   doc.setFontSize(7)
   doc.text('Connected | Consistent | Confident', m, 27)
   doc.setFontSize(7).setTextColor(255, 255, 255)
-  doc.text('Office 818, 1 Roundhouse Road,', pw - m, 12, { align: 'right' })
-  doc.text('Pride Park, Derby, DE24 8JE', pw - m, 17, { align: 'right' })
-  doc.text('contactus@3ccore.com  ·  3ccore.com', pw - m, 22, { align: 'right' })
+  // Registered office, from the single source of truth in lib/constants.ts
+  const addressLines = COMPANY.address.split(', ')
+  doc.text(addressLines.slice(0, 1).join(', ') + ',', pw - m, 12, { align: 'right' })
+  doc.text(addressLines.slice(1).join(', '), pw - m, 17, { align: 'right' })
+  doc.text(`${COMPANY.email}  ·  3ccore.com`, pw - m, 22, { align: 'right' })
 
   let y = 42
 
@@ -153,6 +176,54 @@ function buildPdf(data: z.infer<typeof pdfSchema>) {
         y += rowH + 4
       }
     }
+
+    // Photos — 3-column grid, aspect ratio preserved
+    const gap   = 4
+    const cellW = (mw - gap * 2) / 3
+    const maxH  = 55
+    const capH  = 4
+    // Measure first, so corrupt images are dropped before anything is counted.
+    const photos = room.imageUrls
+      .map((src, i) => ({ src, caption: room.imageCaptions[i] ?? '' }))
+      .filter(p => IMAGE_DATA_URI_RE.test(p.src))
+      .map(p => {
+        try {
+          const props = doc.getImageProperties(p.src)
+          if (!props.width || !props.height) return null
+          const h = Math.min(maxH, cellW * (props.height / props.width))
+          const w = h * (props.width / props.height)
+          return { ...p, w, h, fmt: props.fileType === 'PNG' ? 'PNG' : 'JPEG' }
+        } catch {
+          return null // corrupt image data — skip it rather than fail the report
+        }
+      })
+      .filter((p): p is NonNullable<typeof p> => p !== null)
+
+    if (photos.length > 0) {
+      if (y > ph - 40) { doc.addPage(); y = 20 }
+      doc.setFont('helvetica', 'bold').setFontSize(8).setTextColor(...COLOURS.muted)
+      doc.text(`Photos (${photos.length})`, m, y)
+      y += 4
+
+      for (let i = 0; i < photos.length; i += 3) {
+        const row = photos.slice(i, i + 3)
+
+        const rowH = Math.max(...row.map(p => p.h)) + capH + 2
+        if (y + rowH > ph - 20) { doc.addPage(); y = 20 }
+        row.forEach((p, k) => {
+          const x = m + k * (cellW + gap)
+          try {
+            doc.addImage(p.src, p.fmt, x, y, p.w, p.h)
+          } catch { /* skip unrenderable image */ }
+          if (p.caption) {
+            doc.setFont('helvetica', 'normal').setFontSize(6).setTextColor(...COLOURS.muted)
+            const cap = doc.splitTextToSize(p.caption, cellW)[0] ?? ''
+            doc.text(cap, x, y + p.h + 3)
+          }
+        })
+        y += rowH + 2
+      }
+    }
     y += 6
   }
 
@@ -200,10 +271,15 @@ export async function POST(req: Request) {
     let storedUrl: string | null = null
     let storagePath: string | null = null
 
-    // Upload to inventory-reports bucket (best-effort)
-    if (data.reportId) {
+    // Guests may generate and download a PDF, but nothing is written to
+    // storage for them. Only a signed-in owner of the report gets a stored copy.
+    const session = await getServerSession(authOptions)
+
+    if (data.reportId && session?.user?.id) {
       try {
         const admin = createAdminClient()
+        const verdict = await checkReportAccess(admin, data.reportId, session)
+        if (verdict !== 'owned') throw new Error('not-owner')
         storagePath = `${data.reportId}/inventory-${Date.now()}.pdf`
         const { error: upErr } = await admin.storage
           .from('inventory-reports')
@@ -242,10 +318,9 @@ export async function POST(req: Request) {
     })
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return NextResponse.json({ error: err.errors[0]?.message ?? 'Invalid request.' }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid request.' }, { status: 400 })
     }
-    const msg = err instanceof Error ? err.message : String(err)
-    console.error('[generate-pdf] error:', msg)
-    return NextResponse.json({ error: msg }, { status: 500 })
+    console.error('[generate-pdf] error:', err)
+    return NextResponse.json({ error: 'Something went wrong. Please try again.' }, { status: 500 })
   }
 }

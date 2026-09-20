@@ -5,6 +5,7 @@
 // row with the form fields collected during registration.
 
 import { createAdminClient } from '@/lib/supabase'
+import { normaliseEmail } from '@/lib/normalise-email'
 
 export interface CustomerProfileWrite {
   email:      string
@@ -70,7 +71,7 @@ export async function writeCustomerProfile(input: CustomerProfileWrite): Promise
         password_hash: input.passwordHash,
         portal_role_id,
       } as never)
-      .ilike('Email', input.email)
+      .eq('Email', normaliseEmail(input.email))
 
     if (error) {
       console.warn('[users-db.writeCustomerProfile] update failed:', error.message)
@@ -90,7 +91,7 @@ export async function findCustomerByEmail(email: string): Promise<CustomerProfil
     const { data, error } = await admin
       .from('users')
       .select('User_id, Email, FirstName, MiddleName, Lastname, Phone, Company, password_hash, portal_role_id, created_at')
-      .ilike('Email', email)
+      .eq('Email', normaliseEmail(email))
       .limit(1)
       .maybeSingle() as { data: CustomerProfileRow | null, error: { message: string } | null }
     if (error) {
@@ -111,7 +112,7 @@ export async function updateCustomerPassword(email: string, passwordHash: string
     const { error } = await admin
       .from('users')
       .update({ password_hash: passwordHash } as never)
-      .ilike('Email', email)
+      .eq('Email', normaliseEmail(email))
     if (error) {
       console.warn('[users-db.updateCustomerPassword] update failed:', error.message)
       return false

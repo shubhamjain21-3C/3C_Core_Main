@@ -30,7 +30,7 @@ export default function AboutPage() {
           </ul>
           <div className="text-sm text-[#8B3A2A] space-y-0.5">
             <p>Registered in England and Wales · Companies House No: 17050206</p>
-            <p>Registered Address: 60 Tottenham Court Road, Office 818, London, W1T 2EW, England</p>
+            <p>Registered Address: 60 Tottenham Court Road, London, England, W1T 2EW</p>
           </div>
         </div>
 
@@ -57,7 +57,7 @@ export default function AboutPage() {
         {/* Coming Soon */}
         <div className="rounded-2xl p-6 mb-10 text-center" style={{ background: 'rgba(45,80,22,0.06)', border: '1px solid rgba(45,80,22,0.2)' }}>
           <h2 className="font-heading font-semibold text-[#2D5016] text-xl mb-2">Coming Soon</h2>
-          <p className="text-sm text-[#2C1F14]">We are continuously expanding our services. Stay tuned for AI-powered inventory tools, subscription plans, and more.</p>
+          <p className="text-sm text-[#2C1F14]">We are continuously expanding our services. Stay tuned for new inventory tools, subscription plans and more.</p>
         </div>
 
         {/* Contact */}
@@ -66,7 +66,7 @@ export default function AboutPage() {
           <div className="space-y-2 text-sm text-[#2C1F14]">
             <p className="flex items-center gap-2"><Mail size={14} className="text-[#D4860A] shrink-0" /><a href="mailto:contactus@3ccore.com" className="text-[#D4860A] underline">contactus@3ccore.com</a></p>
             <p className="flex items-center gap-2"><Phone size={14} className="text-[#D4860A] shrink-0" /><a href="tel:07852254792" className="text-[#D4860A] underline">07852254792</a></p>
-            <p className="flex items-start gap-2"><MapPin size={14} className="text-[#D4860A] shrink-0 mt-0.5" />60 Tottenham Court Road, Office 818, London, W1T 2EW, England</p>
+            <p className="flex items-start gap-2"><MapPin size={14} className="text-[#D4860A] shrink-0 mt-0.5" />60 Tottenham Court Road, London, England, W1T 2EW</p>
           </div>
         </div>
       </div>

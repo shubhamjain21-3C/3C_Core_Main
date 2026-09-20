@@ -11,6 +11,9 @@ import { ServicePageHeader } from '@/components/layout/ServicePageHeader'
 import { CameraCapture } from '@/components/inventory/CameraCapture'
 import type { LookupRow } from '@/types/database'
 
+// AI photo analysis is built but not activated. Flag defaults to off.
+const AI_ENABLED = process.env.NEXT_PUBLIC_AI_ANALYSIS_ENABLED === 'true'
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 interface MediaItem {
@@ -112,6 +115,41 @@ function newMedia(file: File): MediaItem {
   }
 }
 
+// ── PDF photo preparation ───────────────────────────────────────────────────
+// Photos go to the PDF route as compressed inline JPEGs. Keeping this in the
+// browser means guests' photos (never uploaded) still appear in their report,
+// and the server never has to fetch a URL. Budgets keep the request under the
+// 4.5 MB serverless body limit.
+const PDF_PHOTO_MAX_PX        = 1024
+const PDF_PHOTO_QUALITY       = 0.6
+const PDF_PHOTOS_PER_ROOM     = 40
+const PDF_PHOTOS_TOTAL        = 60
+const PDF_PHOTO_MAX_CHARS     = 700_000
+const PDF_PHOTO_BUDGET_CHARS  = 3_500_000
+
+function compressImage(src: string): Promise<string | null> {
+  return new Promise(resolve => {
+    const img = new Image()
+    if (!src.startsWith('blob:') && !src.startsWith('data:')) img.crossOrigin = 'anonymous'
+    img.onload = () => {
+      try {
+        const scale  = Math.min(1, PDF_PHOTO_MAX_PX / Math.max(img.naturalWidth, img.naturalHeight))
+        const canvas = document.createElement('canvas')
+        canvas.width  = Math.max(1, Math.round(img.naturalWidth  * scale))
+        canvas.height = Math.max(1, Math.round(img.naturalHeight * scale))
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return resolve(null)
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+        resolve(canvas.toDataURL('image/jpeg', PDF_PHOTO_QUALITY))
+      } catch {
+        resolve(null) // tainted canvas or decode failure
+      }
+    }
+    img.onerror = () => resolve(null) // e.g. HEIC in a browser that cannot decode it
+    img.src = src
+  })
+}
+
 function newRoom(name = 'New Room'): Room {
   return {
     localId:       uid(),
@@ -149,6 +187,13 @@ export default function InventoryDIYPage() {
 
 function InventoryDIYContent() {
   const { data: session, status } = useSession()
+  // Guests keep the whole report in the browser: the persistence APIs now
+  // require a session, so we never call them when signed out.
+  const isGuest = status !== 'authenticated'
+  // Signed in, but the server could not store the report (e.g. database
+  // unavailable). Behave exactly like a guest rather than failing every upload.
+  const [saveFailed, setSaveFailed] = useState(false)
+  const localOnly = isGuest || saveFailed
 
   // ── Lookups ───────────────────────────────────────────────────────────────
   const [reportTypes,    setReportTypes]    = useState<LookupRow[]>([])
@@ -204,6 +249,7 @@ function InventoryDIYContent() {
   const [pdfDownloading,  setPdfDownloading]  = useState(false)
   const [pdfError,        setPdfError]        = useState('')
   const [pdfDone,         setPdfDone]         = useState(false)
+  const [pdfPhotoNote,    setPdfPhotoNote]    = useState('')
   const [cameraTarget,    setCameraTarget]    = useState<{ roomIdx: number; itemIdx: number | null } | null>(null)
 
   // Try to restore an in-progress draft from localStorage
@@ -255,7 +301,7 @@ function InventoryDIYContent() {
 
   // Autosave to server when reportId exists + meta changes
   useEffect(() => {
-    if (!meta.reportId) return
+    if (isGuest || !meta.reportId) return
     const id = setTimeout(async () => {
       setAutosaveState('saving')
       try {
@@ -272,7 +318,7 @@ function InventoryDIYContent() {
       } catch { setAutosaveState('error') }
     }, 1200)
     return () => clearTimeout(id)
-  }, [meta])
+  }, [meta, isGuest])
 
   // ── Step 1: create the report ─────────────────────────────────────────────
   async function startReport(e: React.FormEvent) {
@@ -289,6 +335,16 @@ function InventoryDIYContent() {
     }
 
     setCreatingReport(true)
+
+    // Guest: nothing is persisted. Leaving reportId empty makes every
+    // downstream persistence helper a no-op.
+    if (isGuest) {
+      if (rooms.length === 0) setRooms([newRoom('Living Room')])
+      setStep(2)
+      setCreatingReport(false)
+      return
+    }
+
     try {
       const res = await fetch('/api/inventory/reports', {
         method: 'POST',
@@ -309,7 +365,15 @@ function InventoryDIYContent() {
         setCreateError(data.message || 'Failed to start report.')
         return
       }
-      setMeta(m => ({ ...m, reportId: data.reportId }))
+      if (data.dbSaved) {
+        setMeta(m => ({ ...m, reportId: data.reportId }))
+        setSaveFailed(false)
+      } else {
+        // The returned id is a client-side placeholder that exists nowhere on
+        // the server; using it would make every room/item/upload call fail.
+        setMeta(m => ({ ...m, reportId: null }))
+        setSaveFailed(true)
+      }
       if (rooms.length === 0) setRooms([newRoom('Living Room')])
       setStep(2)
     } catch {
@@ -353,7 +417,7 @@ function InventoryDIYContent() {
   // Persist a room — call after edits settle (caller controls debouncing)
   async function persistRoom(idx: number): Promise<string | undefined> {
     const r = rooms[idx]
-    if (!r || !meta.reportId) return r?.roomId
+    if (!r || isGuest || !meta.reportId) return r?.roomId
     try {
       const res = await fetch('/api/inventory/rooms', {
         method: 'POST',
@@ -380,6 +444,12 @@ function InventoryDIYContent() {
   // ── Media upload helpers ──────────────────────────────────────────────────
   async function uploadMedia(roomIdx: number, itemIdx: number | null, mediaIdx: number) {
     // Make sure the room is persisted so we have a roomId for the upload path
+    if (localOnly || !meta.reportId) {
+      // Photo stays in the browser as an object URL and goes into the PDF
+      // payload from there. Nothing is uploaded.
+      patchMedia(roomIdx, itemIdx, mediaIdx, { uploading: false, uploadError: null })
+      return
+    }
     const roomId = rooms[roomIdx]?.roomId ?? await persistRoom(roomIdx)
     if (!roomId || !meta.reportId) {
       patchMedia(roomIdx, itemIdx, mediaIdx, { uploading: false, uploadError: 'Save the report first.' })
@@ -518,7 +588,7 @@ function InventoryDIYContent() {
   async function persistItem(roomIdx: number, itemIdx: number) {
     const room = rooms[roomIdx]
     const item = room?.items[itemIdx]
-    if (!room || !item) return
+    if (!room || !item || isGuest) return
     const roomId = room.roomId ?? await persistRoom(roomIdx)
     if (!roomId) return
     try {
@@ -596,14 +666,38 @@ function InventoryDIYContent() {
     setPdfDownloading(true)
     setPdfError('')
     setPdfDone(false)
+    setPdfPhotoNote('')
     try {
+      // Compress every still photo (room-level and item-level) within budget.
+      let totalPhotos = 0
+      let budget      = PDF_PHOTO_BUDGET_CHARS
+      let skipped     = 0
+      const roomPhotos: Array<{ urls: string[]; captions: string[] }> = []
+      for (const r of rooms) {
+        const candidates = [...r.media, ...r.items.flatMap(i => i.media)]
+          .filter(m => m.mediaTypeCode !== 'video' && !m.file?.type.startsWith('video/'))
+        const urls: string[] = []
+        const captions: string[] = []
+        for (const m of candidates) {
+          if (urls.length >= PDF_PHOTOS_PER_ROOM || totalPhotos >= PDF_PHOTOS_TOTAL) { skipped++; continue }
+          const src = m.previewUrl || m.remoteUrl
+          const data = src ? await compressImage(src) : null
+          if (!data || data.length > PDF_PHOTO_MAX_CHARS || data.length > budget) { skipped++; continue }
+          urls.push(data)
+          captions.push(m.caption.slice(0, 200))
+          budget -= data.length
+          totalPhotos++
+        }
+        roomPhotos.push({ urls, captions })
+      }
+
       const propertyAddress = [
         meta.addressLine1, meta.addressLine2, meta.city, meta.postcode,
       ].filter(Boolean).join(', ')
 
       const reportTypeLabel = reportTypes.find(t => t.code === meta.reportTypeCode)?.label || 'Inventory Report'
 
-      const roomsPayload = rooms.map(r => {
+      const roomsPayload = rooms.map((r, ri) => {
         const aiRoom = analysisResult?.find(a => a.room_name === r.roomName)
         return {
           room_name:       r.roomName,
@@ -622,7 +716,8 @@ function InventoryDIYContent() {
             // AI-discovered items (if any)
             ...(aiRoom?.items ?? []),
           ],
-          imageUrls: r.media.map(m => m.remoteUrl).filter(Boolean) as string[],
+          imageUrls:     roomPhotos[ri].urls,
+          imageCaptions: roomPhotos[ri].captions,
         }
       })
 
@@ -640,15 +735,19 @@ function InventoryDIYContent() {
         }),
       })
       if (!res.ok) {
-        const text = await res.text().catch(() => '')
-        setPdfError(text || `PDF generation failed (${res.status}).`)
+        setPdfError(res.status === 400
+          ? 'The report is too large to generate. Try removing some rooms or photos.'
+          : 'PDF generation failed. Please try again.')
         return
+      }
+      if (skipped > 0) {
+        setPdfPhotoNote(`${skipped} photo${skipped === 1 ? '' : 's'} could not be included (unsupported format or size limit).`)
       }
       const blob = await res.blob()
       const url  = URL.createObjectURL(blob)
       const a    = document.createElement('a')
       a.href = url
-      a.download = `3CCore-Inventory-${(meta.reportId ?? 'report').slice(0, 8)}.pdf`
+      a.download = `3CCore-Inventory-${(meta.reportId || 'report').slice(0, 8)}.pdf`
       document.body.appendChild(a)
       a.click()
       a.remove()
@@ -846,6 +945,25 @@ function InventoryDIYContent() {
         {/* ── STEP 2 — Rooms / media ──────────────────────────────────────── */}
         {step === 2 && (
           <div className="space-y-5">
+            {localOnly && (
+              <div className="rounded-xl p-3 text-xs text-[#8B3A2A] flex items-start gap-2"
+                style={{ background: 'rgba(212,134,10,0.08)', border: '1px solid rgba(212,134,10,0.25)' }}>
+                <LogIn size={13} className="text-[#D4860A] mt-0.5 flex-shrink-0" />
+                {isGuest ? (
+                  <span>
+                    Your photos and notes stay in this browser and are not uploaded.{' '}
+                    <Link href="/portal/login?role=property_manager" className="text-[#D4860A] underline">Log in</Link>{' '}
+                    to save this report to your portal.
+                  </span>
+                ) : (
+                  <span>
+                    This report could not be saved to your portal right now, so your photos and notes
+                    stay in this browser. You can still download the PDF.
+                  </span>
+                )}
+              </div>
+            )}
+
             <div className="flex items-center justify-between gap-2">
               <div>
                 <h2 className="font-heading font-semibold text-[#D4860A] text-xl">Rooms &amp; Media</h2>
@@ -899,7 +1017,7 @@ function InventoryDIYContent() {
 
             {!hasUploads && rooms.length > 0 && (
               <p className="text-xs text-center text-[#8B3A2A]/70">
-                Add at least one photo or note per room — you can still proceed without media but the AI analysis will be limited.
+                Add at least one photo or note per room — you can still proceed without media, but your report will have less detail.
               </p>
             )}
 
@@ -917,11 +1035,11 @@ function InventoryDIYContent() {
           </div>
         )}
 
-        {/* ── STEP 3 — Review + AI analysis ──────────────────────────────── */}
+        {/* ── STEP 3 — Review ────────────────────────────────────────────── */}
         {step === 3 && (
           <div className="space-y-5">
             <div className="flex items-center justify-between gap-2">
-              <h2 className="font-heading font-semibold text-[#D4860A] text-xl">Review &amp; Analyse</h2>
+              <h2 className="font-heading font-semibold text-[#D4860A] text-xl">{AI_ENABLED ? 'Review &amp; Analyse' : 'Review'}</h2>
               <button type="button" onClick={() => setStep(2)} className={btnGhost}>
                 <ArrowLeft size={14} /> Edit rooms
               </button>
@@ -1004,11 +1122,12 @@ function InventoryDIYContent() {
               })}
             </div>
 
-            {analysisStubbed && analysisResult && (
-              <div className="rounded-xl p-3 text-xs text-[#8B3A2A] inline-flex items-start gap-2"
+            {(!AI_ENABLED || analysisStubbed) && (
+              <div className="rounded-xl p-3 text-xs text-[#8B3A2A] flex items-start gap-2"
                 style={{ background: 'rgba(212,134,10,0.08)', border: '1px solid rgba(212,134,10,0.25)' }}>
                 <AlertTriangle size={13} className="text-[#D4860A] mt-0.5 flex-shrink-0" />
-                AI analysis is currently disabled. The report will be generated from your captured data only — enable AI later for richer auto-descriptions.
+                AI analysis is not yet available. Your report is built from the photos and notes you
+                entered yourself — nothing is written or assessed automatically.
               </div>
             )}
 
@@ -1020,17 +1139,19 @@ function InventoryDIYContent() {
             )}
 
             <div className="flex flex-col sm:flex-row gap-2">
-              <button
-                type="button"
-                onClick={runAnalysis}
-                disabled={analysing}
-                className={btnPrimary + ' flex-1'}
-                style={{ background: analysing ? '#aaa' : '#D4860A' }}
-              >
-                {analysing
-                  ? <><Loader2 size={14} className="animate-spin" /> Analysing…</>
-                  : <><Sparkles size={14} /> {analysisResult ? 'Re-run AI Analysis' : 'Generate Report with AI'}</>}
-              </button>
+              {AI_ENABLED && (
+                <button
+                  type="button"
+                  onClick={runAnalysis}
+                  disabled={analysing}
+                  className={btnPrimary + ' flex-1'}
+                  style={{ background: analysing ? '#aaa' : '#D4860A' }}
+                >
+                  {analysing
+                    ? <><Loader2 size={14} className="animate-spin" /> Analysing…</>
+                    : <><Sparkles size={14} /> {analysisResult ? 'Re-run AI Analysis' : 'Generate Report with AI'}</>}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setStep(4)}
@@ -1076,6 +1197,10 @@ function InventoryDIYContent() {
 
               {pdfDone && !pdfError && (
                 <p className="text-green-700 text-xs mb-3">PDF downloaded — check your downloads folder.</p>
+              )}
+
+              {pdfDone && pdfPhotoNote && (
+                <p className="text-[#8B3A2A] text-xs mb-3">{pdfPhotoNote}</p>
               )}
 
               <button
@@ -1215,7 +1340,7 @@ function RoomCard(props: RoomCardProps) {
                 onBlur={props.onPersist}
                 className={inputCls}
               >
-                <option value="">Set by AI</option>
+                <option value="">{AI_ENABLED ? 'Set by AI' : 'Select a condition'}</option>
                 {conditionLevels.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
               </select>
             </div>

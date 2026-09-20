@@ -1,33 +1,34 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
 import { z } from 'zod'
-import { authOptions } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase'
 import { lookupId } from '@/lib/lookups'
 import { randomUUID } from 'crypto'
+import { requireSession, sessionUserUuid, badRequest, forbidden, serverError } from '@/lib/api-auth'
+import { checkReportAccess } from '@/lib/inventory-auth'
 
 export const dynamic = 'force-dynamic'
 
 // ── POST: create a new draft report ─────────────────────────────────────────
 //
-// Best-effort persistence: if Supabase rejects (env vars missing, FK on User_id
-// because the NextAuth user isn't in `public.users`, etc.) we still return a
-// client-side UUID so the DIY page can keep working offline-first.
+// Requires a session: this writes a customer record with the service-role key.
+// Guests use the DIY wizard entirely in the browser and never reach this route.
 
 const createSchema = z.object({
   reportTypeCode: z.string().min(1),         // ref_report_types.code
   propertyId:     z.string().uuid().optional(),
   inspectionDate: z.string().min(1),
-  inspectorName:  z.string().min(1),
+  inspectorName:  z.string().min(1).max(200),
   // Optional address fields when the user is capturing a new property
-  addressLine1:   z.string().optional(),
-  addressLine2:   z.string().optional(),
-  city:           z.string().optional(),
-  postcode:       z.string().optional(),
+  addressLine1:   z.string().max(200).optional(),
+  addressLine2:   z.string().max(200).optional(),
+  city:           z.string().max(100).optional(),
+  postcode:       z.string().max(20).optional(),
 })
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions)
+  const auth = await requireSession()
+  if ('response' in auth) return auth.response
+  const { session } = auth
 
   try {
     const body = await req.json()
@@ -50,7 +51,8 @@ export async function POST(req: Request) {
       const payload = {
         property_id:        data.propertyId ?? null,
         report_type_id:     reportTypeId,
-        User_Id:            null, // NextAuth ids don't map to Supabase auth.users yet
+        // Ownership: only set when the session id is a real Supabase uuid.
+        User_Id:            sessionUserUuid(session),
         status_id:          statusId,
         ai_generated:       false,
         clerk_notes:        data.inspectorName
@@ -77,38 +79,27 @@ export async function POST(req: Request) {
       warning = 'Report not persisted to database — continuing offline.'
     }
 
-    return NextResponse.json({
-      success:  true,
-      reportId,
-      dbSaved,
-      warning,
-      session: session ? { name: session.user?.name, email: session.user?.email } : null,
-    })
+    return NextResponse.json({ success: true, reportId, dbSaved, warning })
   } catch (err) {
-    if (err instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, message: err.errors[0]?.message ?? 'Invalid request.' },
-        { status: 400 },
-      )
-    }
-    console.error('[inventory.reports] unexpected error:', err)
-    return NextResponse.json(
-      { success: false, message: 'Server error.' },
-      { status: 500 },
-    )
+    if (err instanceof z.ZodError) return badRequest()
+    return serverError('inventory.reports', err)
   }
 }
 
 // ── PATCH: autosave draft / update fields ───────────────────────────────────
 const patchSchema = z.object({
   reportId:   z.string().uuid(),
-  statusCode: z.string().optional(),          // e.g. 'pending_review'
-  aiSummary:  z.string().optional(),
-  pdfUrl:     z.string().optional(),
-  notes:      z.string().optional(),
+  statusCode: z.string().max(50).optional(),   // e.g. 'pending_review'
+  aiSummary:  z.string().max(20000).optional(),
+  pdfUrl:     z.string().max(2000).optional(),
+  notes:      z.string().max(20000).optional(),
 })
 
 export async function PATCH(req: Request) {
+  const auth = await requireSession()
+  if ('response' in auth) return auth.response
+  const { session } = auth
+
   try {
     const body = await req.json()
     const data = patchSchema.parse(body)
@@ -122,27 +113,30 @@ export async function PATCH(req: Request) {
       if (statusId) update.status_id = statusId
     }
 
+    let admin
     try {
-      const admin = createAdminClient()
-      const { error } = await admin
-        .from('inventory_reports')
-        .update(update as never)
-        .eq('InventoryReport_id', data.reportId)
-      if (error) {
-        return NextResponse.json({ success: false, message: error.message, dbSaved: false })
-      }
-      return NextResponse.json({ success: true, dbSaved: true })
-    } catch (err) {
-      console.warn('[inventory.reports PATCH] supabase unavailable:', err)
+      admin = createAdminClient()
+    } catch {
       return NextResponse.json({ success: true, dbSaved: false, warning: 'Persistence skipped' })
     }
-  } catch (err) {
-    if (err instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, message: err.errors[0]?.message ?? 'Invalid request.' },
-        { status: 400 },
-      )
+
+    const verdict = await checkReportAccess(admin, data.reportId, session)
+    if (verdict === 'forbidden' || verdict === 'not-found') return forbidden()
+    if (verdict === 'unavailable') {
+      return NextResponse.json({ success: true, dbSaved: false, warning: 'Persistence skipped' })
     }
-    return NextResponse.json({ success: false, message: 'Server error.' }, { status: 500 })
+
+    const { error } = await admin
+      .from('inventory_reports')
+      .update(update as never)
+      .eq('InventoryReport_id', data.reportId)
+    if (error) {
+      console.warn('[inventory.reports PATCH] update error:', error.message)
+      return NextResponse.json({ success: false, dbSaved: false })
+    }
+    return NextResponse.json({ success: true, dbSaved: true })
+  } catch (err) {
+    if (err instanceof z.ZodError) return badRequest()
+    return serverError('inventory.reports PATCH', err)
   }
 }

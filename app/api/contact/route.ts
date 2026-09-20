@@ -23,8 +23,10 @@ export async function POST(request: Request) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ success: false, errors: error.errors }, { status: 400 })
     }
-    const msg = error instanceof Error ? error.message : String(error)
-    console.error('Contact form error:', msg)
-    return NextResponse.json({ success: false, message: msg }, { status: 500 })
+    console.error('Contact form error:', error)
+    return NextResponse.json(
+      { success: false, message: 'Something went wrong. Please try again.' },
+      { status: 500 },
+    )
   }
 }

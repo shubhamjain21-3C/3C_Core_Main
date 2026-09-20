@@ -4,6 +4,7 @@ import { createUser, hashPassword } from '@/lib/store'
 import { getSupabaseClient } from '@/lib/supabase'
 import { isFullyRegistered } from '@/lib/email-exists'
 import { writeCustomerProfile } from '@/lib/users-db'
+import { normaliseEmail } from '@/lib/normalise-email'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,7 +13,7 @@ const registerSchema = z.object({
   middleName: z.string().optional(),
   lastName:   z.string().min(1, 'Last name is required'),
   dob:        z.string().min(1, 'Date of birth is required'),
-  email:      z.string().email('Invalid email address'),
+  email:      z.string().email('Invalid email address').transform(normaliseEmail),
   phone:      z.string().optional(),
   company:    z.string().optional(),
   password:   z.string().min(8, 'Password must be at least 8 characters'),
@@ -75,7 +76,7 @@ export async function POST(request: Request) {
 
     if (verifyError) {
       console.error('[register] verifyOtp failed across all types:', { email: data.email, method: data.otpMethod, attempts })
-      // Surface the real Supabase error message in logs and the response
+      // Real Supabase message stays in the server log only.
       const msg = verifyError.message.toLowerCase()
       const friendly =
         msg.includes('expired')                          ? 'Your verification code has expired. Please request a new one.'
@@ -85,7 +86,7 @@ export async function POST(request: Request) {
                         ? `Verification failed: ${verifyError.message}`
                         : 'Verification failed. Please try again.'
       return NextResponse.json(
-        { success: false, message: friendly, supabaseError: verifyError.message },
+        { success: false, message: friendly },
         { status: 400 },
       )
     }

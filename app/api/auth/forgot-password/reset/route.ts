@@ -4,6 +4,7 @@ import { hashPassword, updateUserPasswordByEmail } from '@/lib/store'
 import { getSupabaseClient } from '@/lib/supabase'
 import { isFullyRegistered } from '@/lib/email-exists'
 import { updateCustomerPassword } from '@/lib/users-db'
+import { normaliseEmail } from '@/lib/normalise-email'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,7 +13,7 @@ export const dynamic = 'force-dynamic'
 // so the change survives serverless cold starts).
 
 const schema = z.object({
-  email:       z.string().email(),
+  email:       z.string().email().transform(normaliseEmail),
   otpCode:     z.string().length(6, 'Verification code must be 6 digits'),
   newPassword: z.string().min(8, 'Password must be at least 8 characters'),
 })

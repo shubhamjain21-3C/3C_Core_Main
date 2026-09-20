@@ -1,5 +1,6 @@
 import { findUserByEmail } from '@/lib/store'
 import { createAdminClient } from '@/lib/supabase'
+import { normaliseEmail } from '@/lib/normalise-email'
 
 // ── Email existence checks ──────────────────────────────────────────────────
 // Two flavours:
@@ -29,7 +30,7 @@ async function fetchPublicUsersRow(email: string): Promise<UsersRow | null> {
     const { data, error } = await admin
       .from('users')
       .select('Email, password_hash, Lastname')
-      .ilike('Email', email)
+      .eq('Email', normaliseEmail(email))
       .limit(1)
       .maybeSingle() as { data: UsersRow | null, error: { message: string } | null }
     if (error) {

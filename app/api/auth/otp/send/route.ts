@@ -2,12 +2,13 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSupabaseClient } from '@/lib/supabase'
 import { isFullyRegistered } from '@/lib/email-exists'
+import { normaliseEmail } from '@/lib/normalise-email'
 
 export const dynamic = 'force-dynamic'
 
 const schema = z.object({
   method: z.enum(['email', 'phone']),
-  email:  z.string().email().optional(),
+  email:  z.string().email().transform(normaliseEmail).optional(),
   phone:  z.string().optional(),
   name:   z.string().optional(),
 })
@@ -76,7 +77,9 @@ export async function POST(request: Request) {
         console.error('[OTP] Supabase signInWithOtp error:', error.message)
         const isRateLimit = /rate|too many|seconds/i.test(error.message)
         return NextResponse.json(
-          { error: error.message || 'Failed to send verification email.' },
+          { error: isRateLimit
+              ? 'Too many attempts. Please wait a minute and try again.'
+              : 'Failed to send verification email.' },
           { status: isRateLimit ? 429 : 502 },
         )
       }
@@ -122,7 +125,9 @@ export async function POST(request: Request) {
         console.error('[OTP] Supabase phone OTP error:', error.message)
         const isRateLimit = /rate|too many|seconds/i.test(error.message)
         return NextResponse.json(
-          { error: error.message || 'Failed to send SMS code.' },
+          { error: isRateLimit
+              ? 'Too many attempts. Please wait a minute and try again.'
+              : 'Failed to send SMS code.' },
           { status: isRateLimit ? 429 : 502 },
         )
       }

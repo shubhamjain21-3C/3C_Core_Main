@@ -5,6 +5,50 @@ third-party setup, or architectural decisions.
 
 ---
 
+## STATUS UPDATE — 16 September 2026
+
+The live site returned `TypeError: fetch failed` from `/api/lookups` on
+16 Sep 2026, which is consistent with BLOCKER 1 below never having been cleared
+(or the Supabase project having been paused since).
+
+Diagnosis is now one request: **`GET /api/health`** returns
+`{ status, db, region }`. `db: "unavailable"` means the app is up but cannot
+reach Postgres. `region` confirms the function ran in London.
+
+Order of work for SJ:
+
+1. Supabase dashboard → 3C Core project. If it shows **Paused**, click
+   **Restore**. Note the region under Project Settings → General (London is
+   `eu-west-2`).
+2. Project Settings → API — confirm the Project URL and keys.
+3. Vercel → Settings → Environment Variables (Production) — confirm
+   `NEXT_PUBLIC_SUPABASE_URL` (starts `https://`, no trailing space),
+   `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`,
+   `NEXTAUTH_SECRET`, `NEXTAUTH_URL=https://3ccore.com`, `RESEND_API_KEY`,
+   `RESEND_FROM_EMAIL`. **Do not** add `ENABLE_DEMO_ACCOUNTS` in Production.
+4. Supabase SQL editor — `select count(*) from ref_portal_roles;`. If the table
+   is missing, apply `020`, `021`, `022`, `023` in order, then `024` after
+   reading its step 1 output.
+5. Redeploy, then check `https://3ccore.com/api/health`.
+6. Vercel Hobby is for non-commercial personal use — move the project to a
+   company-owned Pro team.
+
+---
+
+## BLOCKER 5: Migration 024 — email uniqueness (added 16 Sep 2026)
+
+**Status:** Written, NOT run. Requires manual review first.
+
+`supabase/migrations/024_email_lowercase_unique.sql` normalises `users."Email"`
+to lowercase and adds a unique index on `lower("Email")`. Application code
+already matches exactly via `normaliseEmail()`.
+
+Step 1 of the migration is a read-only query listing addresses that differ only
+by case. Those groups must be merged by hand before steps 2 and 3 will succeed.
+Take a backup first.
+
+---
+
 ## BLOCKER 1: Supabase — Run Migration 020
 
 **Status:** Credentials collected ✓ — Migration NOT YET RUN in Supabase  

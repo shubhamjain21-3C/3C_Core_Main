@@ -20,7 +20,7 @@ export default function PrivacyAndTermsPage() {
         <div className="rounded-xl p-5 mb-8 text-sm" style={{ background: 'rgba(212,134,10,0.08)', border: '1px solid rgba(212,134,10,0.25)' }}>
           <p className="font-semibold text-[#2C1F14]">3C Core Ltd.</p>
           <p className="text-[#2C1F14]">Registered in England and Wales · Companies House No: 17050206</p>
-          <p className="text-[#2C1F14]">Registered Address: 60 Tottenham Court Road, Office 818, London, W1T 2EW, England</p>
+          <p className="text-[#2C1F14]">Registered Address: 60 Tottenham Court Road, London, England, W1T 2EW</p>
           <p className="text-[#2C1F14]">Email: contactus@3ccore.com · Phone: 07852254792</p>
         </div>
 
@@ -67,7 +67,7 @@ function PrivacyPolicy() {
       <P>This Privacy Policy explains how we collect, use, store, share, and protect your personal data in accordance with the UK General Data Protection Regulation (UK GDPR), the Data Protection Act 2018, and all other applicable UK data protection legislation.</P>
 
       <H2>2. Data Controller Details</H2>
-      <P>Company Name: 3C Core Ltd.<br />Registered Address: 60 Tottenham Court Road, Office 818, London, W1T 2EW, England<br />Email: contactus@3ccore.com<br />Phone: 07852254792<br />Companies House Number: 17050206</P>
+      <P>Company Name: 3C Core Ltd.<br />Registered Address: 60 Tottenham Court Road, London, England, W1T 2EW<br />Email: contactus@3ccore.com<br />Phone: 07852254792<br />Companies House Number: 17050206</P>
       <P>For all data protection enquiries, contact our Data Controller at the above details.</P>
 
       <H2>3. Who This Policy Applies To</H2>
@@ -255,7 +255,7 @@ function TermsOfUse() {
       <P>If you do not agree with any part of these Terms, you must stop using the Website immediately.</P>
 
       <H2>2. About Us</H2>
-      <P>Company Name: 3C Core Ltd. · Registered in England and Wales · Companies House Number: 17050206 · Registered Address: 60 Tottenham Court Road, Office 818, London, W1T 2EW, England · Email: contactus@3ccore.com · Phone: 07852254792</P>
+      <P>Company Name: 3C Core Ltd. · Registered in England and Wales · Companies House Number: 17050206 · Registered Address: 60 Tottenham Court Road, London, England, W1T 2EW · Email: contactus@3ccore.com · Phone: 07852254792</P>
 
       <H2>3. Who These Terms Apply To</H2>
       <ul className="space-y-1 mb-4 ml-2">
@@ -319,7 +319,7 @@ function TermsOfUse() {
       <P>Details to be updated.</P>
 
       <H2>15. Complaints Procedure</H2>
-      <P>We take complaints seriously. If you are unhappy with our website or services, please contact us at contactus@3ccore.com · 07852254792 · 60 Tottenham Court Road, Office 818, London, W1T 2EW, England. We will acknowledge your complaint within 3 business days and aim to resolve it within 8 weeks.</P>
+      <P>We take complaints seriously. If you are unhappy with our website or services, please contact us at contactus@3ccore.com · 07852254792 · 60 Tottenham Court Road, London, England, W1T 2EW. We will acknowledge your complaint within 3 business days and aim to resolve it within 8 weeks.</P>
 
       <H2>16. Availability of the Website</H2>
       <P>We aim to keep our Website available at all times but do not guarantee uninterrupted access. We reserve the right to suspend, withdraw, or restrict access to all or part of the Website at any time for operational, maintenance, or legal reasons without notice.</P>
@@ -337,7 +337,7 @@ function TermsOfUse() {
       <P>These Terms are governed by and construed in accordance with the laws of England and Wales. Any disputes arising out of or in connection with these Terms shall be subject to the exclusive jurisdiction of the courts of England and Wales.</P>
 
       <H2>21. Contact Us</H2>
-      <P>For any questions regarding these Terms of Use, please contact: contactus@3ccore.com · 07852254792 · 60 Tottenham Court Road, Office 818, London, W1T 2EW, England</P>
+      <P>For any questions regarding these Terms of Use, please contact: contactus@3ccore.com · 07852254792 · 60 Tottenham Court Road, London, England, W1T 2EW</P>
     </div>
   )
 }

@@ -34,12 +34,6 @@ const ROLE_GREETINGS: Record<string, string> = {
   others:           'Welcome',
 }
 
-const AI_STATS = [
-  { label: 'Reports Generated', value: '1,000+' },
-  { label: 'Items Catalogued', value: '50,000+' },
-  { label: 'Avg Report Time', value: 'Under 3 mins' },
-]
-
 const FOOTER_LINKS = [
   { label: 'Privacy & Terms', href: '/legal/privacy-and-terms' },
   { label: 'Cookie Settings', href: '/legal/cookies' },
@@ -157,26 +151,6 @@ function ServicesContent() {
           {greeting}
         </motion.p>
 
-        {/* AI stats strip */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-          className="flex gap-3 mb-5 mt-3 flex-wrap justify-center"
-        >
-          {AI_STATS.map(stat => (
-            <div
-              key={stat.label}
-              className="px-4 py-2 rounded-lg text-center"
-              style={{
-                background: 'rgba(255,255,255,0.07)',
-                border: '1px solid rgba(240,168,48,0.35)',
-                backdropFilter: 'blur(6px)',
-              }}
-            >
-              <p className="font-heading font-bold text-white text-base">{stat.value}</p>
-              <p className="text-[10px] mt-0.5" style={{ color: 'rgba(255,255,255,0.6)' }}>{stat.label}</p>
-            </div>
-          ))}
-        </motion.div>
 
         {/* Services label */}
         <motion.p

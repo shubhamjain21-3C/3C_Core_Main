@@ -2,7 +2,11 @@
  * In-memory data store — DEMO / PROTOTYPE ONLY
  * ─────────────────────────────────────────────
  * 9 test users: Shubham, Irfan & Adamya × 3 roles (property_manager, tenant, student)
- * Passwords: Shubham@123 | Irfan@123 | Adamya@123
+ *
+ * The demo users, properties and services below are seeded ONLY when
+ * ENABLE_DEMO_ACCOUNTS === 'true'. The flag is never set in production, so the
+ * store starts empty there: demo credentials cannot log in and the portals show
+ * empty states instead of fictional data.
  */
 
 import { createHash } from 'crypto'
@@ -25,6 +29,12 @@ const legacyHash = (pw: string) =>
   createHash('sha256').update(pw + 'salt_3ccore').digest('hex')
 
 const BCRYPT_COST = 12
+
+/**
+ * Demo seed switch. Default OFF — set ENABLE_DEMO_ACCOUNTS=true in local/dev
+ * environments only. Must never be set on Vercel Production.
+ */
+export const ENABLE_DEMO_ACCOUNTS = process.env.ENABLE_DEMO_ACCOUNTS === 'true'
 
 export async function hashPassword(pw: string): Promise<string> {
   return bcrypt.hash(pw, BCRYPT_COST)
@@ -57,107 +67,97 @@ export const hash = legacyHash
 
 // ── Users ──────────────────────────────────────────────────────────────────────
 
-export const users = new Map<string, PortalUser>([
+const demoUsers: Array<[string, PortalUser]> = [
 
   // ── Property Managers ──────────────────────────────────────────────────────
   ['user-shubham-pm', {
     id: 'user-shubham-pm',
-    name: 'Shubham Jain',
+    name: 'Demo property manager 1',
     email: 'shubham.pm@3ccore.com',
     passwordHash: hash('Shubham@123'),
     role: 'customer',
     portalRole: 'property_manager',
-    company: '3C Core Ltd',
-    phone: '+44 7700 000001',
-    createdAt: '2024-01-10',
+    createdAt: '2026-03-02',
   }],
   ['user-irfan-pm', {
     id: 'user-irfan-pm',
-    name: 'Irfan Ahmed',
+    name: 'Demo property manager 2',
     email: 'irfan.pm@3ccore.com',
     passwordHash: hash('Irfan@123'),
     role: 'customer',
     portalRole: 'property_manager',
-    company: 'Ahmed Properties',
-    phone: '+44 7700 000002',
-    createdAt: '2024-02-05',
+    createdAt: '2026-03-03',
   }],
   ['user-adamya-pm', {
     id: 'user-adamya-pm',
-    name: 'Adamya Singh',
+    name: 'Demo property manager 3',
     email: 'adamya.pm@3ccore.com',
     passwordHash: hash('Adamya@123'),
     role: 'customer',
     portalRole: 'property_manager',
-    company: 'Singh Estates',
-    phone: '+44 7700 000003',
-    createdAt: '2024-03-01',
+    createdAt: '2026-03-04',
   }],
 
   // ── Tenants ────────────────────────────────────────────────────────────────
   ['user-shubham-tenant', {
     id: 'user-shubham-tenant',
-    name: 'Shubham Jain',
+    name: 'Demo tenant 1',
     email: 'shubham.tenant@3ccore.com',
     passwordHash: hash('Shubham@123'),
     role: 'customer',
     portalRole: 'tenant',
-    phone: '+44 7700 000004',
-    createdAt: '2024-01-15',
+    createdAt: '2026-03-05',
   }],
   ['user-irfan-tenant', {
     id: 'user-irfan-tenant',
-    name: 'Irfan Ahmed',
+    name: 'Demo tenant 2',
     email: 'irfan.tenant@3ccore.com',
     passwordHash: hash('Irfan@123'),
     role: 'customer',
     portalRole: 'tenant',
-    phone: '+44 7700 000005',
-    createdAt: '2024-02-10',
+    createdAt: '2026-03-06',
   }],
   ['user-adamya-tenant', {
     id: 'user-adamya-tenant',
-    name: 'Adamya Singh',
+    name: 'Demo tenant 3',
     email: 'adamya.tenant@3ccore.com',
     passwordHash: hash('Adamya@123'),
     role: 'customer',
     portalRole: 'tenant',
-    phone: '+44 7700 000006',
-    createdAt: '2024-03-05',
+    createdAt: '2026-03-07',
   }],
 
   // ── Students ───────────────────────────────────────────────────────────────
   ['user-shubham-student', {
     id: 'user-shubham-student',
-    name: 'Shubham Jain',
+    name: 'Demo student 1',
     email: 'shubham.student@3ccore.com',
     passwordHash: hash('Shubham@123'),
     role: 'customer',
     portalRole: 'student',
-    phone: '+44 7700 000007',
-    createdAt: '2024-01-20',
+    createdAt: '2026-03-08',
   }],
   ['user-irfan-student', {
     id: 'user-irfan-student',
-    name: 'Irfan Ahmed',
+    name: 'Demo student 2',
     email: 'irfan.student@3ccore.com',
     passwordHash: hash('Irfan@123'),
     role: 'customer',
     portalRole: 'student',
-    phone: '+44 7700 000008',
-    createdAt: '2024-02-20',
+    createdAt: '2026-03-09',
   }],
   ['user-adamya-student', {
     id: 'user-adamya-student',
-    name: 'Adamya Singh',
+    name: 'Demo student 3',
     email: 'adamya.student@3ccore.com',
     passwordHash: hash('Adamya@123'),
     role: 'customer',
     portalRole: 'student',
-    phone: '+44 7700 000009',
-    createdAt: '2024-03-10',
+    createdAt: '2026-03-10',
   }],
-])
+]
+
+export const users = new Map<string, PortalUser>(ENABLE_DEMO_ACCOUNTS ? demoUsers : [])
 
 export const findUserByEmail = (email: string) =>
   Array.from(users.values()).find(u => u.email.toLowerCase() === email.toLowerCase()) ?? null
@@ -180,110 +180,98 @@ export const updateUserPasswordByEmail = (email: string, passwordHash: string): 
 
 // ── Properties ────────────────────────────────────────────────────────────────
 
-export const properties = new Map<string, Property>([
+const demoProperties: Array<[string, Property]> = [
 
-  // Shubham PM — 3 properties
+  // Placeholder records for local testing only. Addresses and postcodes are
+  // deliberately not real locations.
+
   ['prop-1', {
     id: 'prop-1', customerId: 'user-shubham-pm',
-    address: '14 Maple Avenue', postcode: 'SW1A 1AA',
+    address: 'Demo property 1', postcode: 'DEMO',
     type: 'Residential', bedrooms: 2, monthlyRent: 1850,
-    status: 'Occupied', serviceIds: ['property-management', 'compliance-legal'],
-    createdAt: '2024-01-20',
+    status: 'Occupied', serviceIds: ['inventory', 'midterm-inspections', 'maintenance'],
+    createdAt: '2026-03-11',
   }],
   ['prop-2', {
     id: 'prop-2', customerId: 'user-shubham-pm',
-    address: '7 Oak Street, Flat 3', postcode: 'E1 6RF',
+    address: 'Demo property 2', postcode: 'DEMO',
     type: 'Residential', bedrooms: 1, monthlyRent: 1400,
-    status: 'Occupied', serviceIds: ['property-management'],
-    createdAt: '2024-02-10',
+    status: 'Occupied', serviceIds: ['inventory'],
+    createdAt: '2026-03-12',
   }],
   ['prop-3', {
     id: 'prop-3', customerId: 'user-shubham-pm',
-    address: '22 Victoria Road', postcode: 'N1 5TQ',
+    address: 'Demo property 3', postcode: 'DEMO',
     type: 'HMO', bedrooms: 5, monthlyRent: 3600,
-    status: 'Occupied', serviceIds: ['property-management', 'tenant-relations', 'maintenance-facilities', 'compliance-legal'],
-    createdAt: '2024-03-05',
+    status: 'Occupied', serviceIds: ['midterm-inspections', 'maintenance'],
+    createdAt: '2026-03-13',
   }],
-
-  // Irfan PM — 2 properties
   ['prop-4', {
     id: 'prop-4', customerId: 'user-irfan-pm',
-    address: '88 Park Lane', postcode: 'W1K 7TN',
+    address: 'Demo property 4', postcode: 'DEMO',
     type: 'Commercial', bedrooms: 0, monthlyRent: 5200,
-    status: 'Occupied', serviceIds: ['property-management', 'compliance-legal'],
-    createdAt: '2024-02-15',
+    status: 'Occupied', serviceIds: ['inventory'],
+    createdAt: '2026-03-14',
   }],
   ['prop-5', {
     id: 'prop-5', customerId: 'user-irfan-pm',
-    address: '45 Birchwood Close', postcode: 'M14 6GH',
+    address: 'Demo property 5', postcode: 'DEMO',
     type: 'Residential', bedrooms: 3, monthlyRent: 1600,
-    status: 'For Letting', serviceIds: ['lettings-consultancy', 'property-management'],
-    createdAt: '2024-03-12',
+    status: 'For Letting', serviceIds: ['letting-services'],
+    createdAt: '2026-03-15',
   }],
-
-  // Adamya PM — 1 property
   ['prop-6', {
     id: 'prop-6', customerId: 'user-adamya-pm',
-    address: '10 Regent Street', postcode: 'W1B 5TR',
+    address: 'Demo property 6', postcode: 'DEMO',
     type: 'Student', bedrooms: 6, monthlyRent: 4200,
-    status: 'Occupied', serviceIds: ['property-management', 'tenant-relations', 'compliance-legal'],
-    createdAt: '2024-03-05',
+    status: 'Occupied', serviceIds: ['midterm-inspections', 'inventory'],
+    createdAt: '2026-03-16',
   }],
-
-  // Shubham Tenant — 1 rented property
   ['prop-7', {
     id: 'prop-7', customerId: 'user-shubham-tenant',
-    address: 'Flat 2, 33 Elm Road', postcode: 'N4 3AP',
+    address: 'Demo property 7', postcode: 'DEMO',
     type: 'Residential', bedrooms: 2, monthlyRent: 1650,
-    status: 'Occupied', serviceIds: ['tenant-relations', 'maintenance-facilities'],
-    createdAt: '2024-01-15',
+    status: 'Occupied', serviceIds: ['inventory'],
+    createdAt: '2026-03-17',
   }],
-
-  // Irfan Tenant — 1 rented property
   ['prop-8', {
     id: 'prop-8', customerId: 'user-irfan-tenant',
-    address: '19 Chestnut Way, Room 4', postcode: 'B15 2TT',
+    address: 'Demo property 8', postcode: 'DEMO',
     type: 'Residential', bedrooms: 1, monthlyRent: 900,
-    status: 'Occupied', serviceIds: ['tenant-relations'],
-    createdAt: '2024-02-10',
+    status: 'Occupied', serviceIds: ['maintenance'],
+    createdAt: '2026-03-18',
   }],
-
-  // Adamya Tenant — 1 rented property
   ['prop-9', {
     id: 'prop-9', customerId: 'user-adamya-tenant',
-    address: 'Flat 7, Camden Heights', postcode: 'NW1 8EP',
+    address: 'Demo property 9', postcode: 'DEMO',
     type: 'Residential', bedrooms: 1, monthlyRent: 1300,
-    status: 'Occupied', serviceIds: ['tenant-relations', 'maintenance-facilities'],
-    createdAt: '2024-03-05',
+    status: 'Occupied', serviceIds: ['maintenance'],
+    createdAt: '2026-03-19',
   }],
-
-  // Shubham Student — student accommodation
   ['prop-10', {
     id: 'prop-10', customerId: 'user-shubham-student',
-    address: 'Room 12, Uni House, Kings Road', postcode: 'SW3 4UZ',
+    address: 'Demo property 10', postcode: 'DEMO',
     type: 'Student', bedrooms: 1, monthlyRent: 750,
-    status: 'Occupied', serviceIds: ['tenant-relations'],
-    createdAt: '2024-01-20',
+    status: 'Occupied', serviceIds: ['inventory'],
+    createdAt: '2026-03-20',
   }],
-
-  // Irfan Student — student accommodation
   ['prop-11', {
     id: 'prop-11', customerId: 'user-irfan-student',
-    address: 'Studio 5, Scholar Place', postcode: 'LS2 9JT',
+    address: 'Demo property 11', postcode: 'DEMO',
     type: 'Student', bedrooms: 1, monthlyRent: 680,
-    status: 'Occupied', serviceIds: ['tenant-relations'],
-    createdAt: '2024-02-20',
+    status: 'Occupied', serviceIds: ['deposit-negotiation'],
+    createdAt: '2026-03-21',
   }],
-
-  // Adamya Student — student accommodation
   ['prop-12', {
     id: 'prop-12', customerId: 'user-adamya-student',
-    address: 'Block C, Room 8, Prospect House', postcode: 'M13 9PL',
+    address: 'Demo property 12', postcode: 'DEMO',
     type: 'Student', bedrooms: 1, monthlyRent: 620,
-    status: 'Occupied', serviceIds: ['tenant-relations'],
-    createdAt: '2024-03-10',
+    status: 'Occupied', serviceIds: ['dispute-resolution'],
+    createdAt: '2026-03-22',
   }],
-])
+]
+
+export const properties = new Map<string, Property>(ENABLE_DEMO_ACCOUNTS ? demoProperties : [])
 
 export const getPropertiesByCustomer = (customerId: string) =>
   Array.from(properties.values()).filter(p => p.customerId === customerId)
@@ -299,91 +287,81 @@ export const deleteProperty = (id: string) => properties.delete(id)
 
 // ── Customer Services ─────────────────────────────────────────────────────────
 
-export const customerServices = new Map<string, CustomerService>([
+// Neutral placeholder text: demo records must not describe results or outcomes.
+const DEMO_BENEFIT = 'Demo record for local testing — not a real service'
 
-  // Shubham PM
+const demoCustomerServices: Array<[string, CustomerService]> = [
+
   ['svc-1', {
     id: 'svc-1', customerId: 'user-shubham-pm', propertyId: 'prop-1',
-    serviceName: 'Property Management', startDate: '2024-01-20', status: 'Active',
-    benefits: ['Void period reduced from 6 weeks to under 1 week', 'Rent collected on time every month', 'Gas & EPC certificates renewed on schedule'],
+    serviceName: 'Inventory Management', startDate: '2026-03-11', status: 'Active',
+    benefits: [DEMO_BENEFIT],
   }],
   ['svc-2', {
     id: 'svc-2', customerId: 'user-shubham-pm', propertyId: 'prop-3',
-    serviceName: 'Compliance & Legal', startDate: '2024-03-05', status: 'Active',
-    benefits: ['HMO licence secured within 3 weeks', 'All safety certificates up to date', 'Zero compliance breaches since onboarding'],
+    serviceName: 'Midterm Property Inspection', startDate: '2026-03-13', status: 'Active',
+    benefits: [DEMO_BENEFIT],
   }],
   ['svc-3', {
     id: 'svc-3', customerId: 'user-shubham-pm', propertyId: 'prop-3',
-    serviceName: 'Tenant Relations', startDate: '2024-03-05', status: 'Active',
-    benefits: ['Tenant satisfaction score: 94%', 'All 5 rooms re-let within 2 weeks of vacancy', 'No formal disputes raised'],
+    serviceName: 'Maintenance & Cleaning', startDate: '2026-03-13', status: 'Active',
+    benefits: [DEMO_BENEFIT],
   }],
-
-  // Irfan PM
   ['svc-4', {
     id: 'svc-4', customerId: 'user-irfan-pm', propertyId: 'prop-4',
-    serviceName: 'Property Management', startDate: '2024-02-15', status: 'Active',
-    benefits: ['Lease renewal secured at 12% uplift', 'Service charge reconciliation completed on time', 'Emergency repairs resolved within 4 hours average'],
+    serviceName: 'Inventory Management', startDate: '2026-03-14', status: 'Active',
+    benefits: [DEMO_BENEFIT],
   }],
   ['svc-5', {
     id: 'svc-5', customerId: 'user-irfan-pm', propertyId: 'prop-5',
-    serviceName: 'Lettings Consultancy', startDate: '2024-03-12', status: 'Active',
-    benefits: ['Tenant found within 10 days of listing', 'Referencing completed with zero issues', 'Above-market rent achieved by 8%'],
+    serviceName: 'Letting Services', startDate: '2026-03-15', status: 'Active',
+    benefits: [DEMO_BENEFIT],
   }],
-
-  // Adamya PM
   ['svc-6', {
     id: 'svc-6', customerId: 'user-adamya-pm', propertyId: 'prop-6',
-    serviceName: 'Property Management', startDate: '2024-03-05', status: 'Active',
-    benefits: ['All 6 student rooms fully let for academic year', 'Maintenance response time under 24 hours', 'Rental income increased 5% year-on-year'],
+    serviceName: 'Midterm Property Inspection', startDate: '2026-03-16', status: 'Active',
+    benefits: [DEMO_BENEFIT],
   }],
   ['svc-7', {
     id: 'svc-7', customerId: 'user-adamya-pm', propertyId: 'prop-6',
-    serviceName: 'Compliance & Legal', startDate: '2024-03-05', status: 'Active',
-    benefits: ['HMO licence renewed on time', 'Fire safety audit passed with no actions', 'All tenancy agreements fully compliant'],
+    serviceName: 'Inventory Management', startDate: '2026-03-16', status: 'Active',
+    benefits: [DEMO_BENEFIT],
   }],
-
-  // Shubham Tenant
   ['svc-8', {
     id: 'svc-8', customerId: 'user-shubham-tenant', propertyId: 'prop-7',
-    serviceName: 'Tenant Relations', startDate: '2024-01-15', status: 'Active',
-    benefits: ['Check-in inventory report provided within 24 hours', 'Maintenance request resolved in 3 days', 'Deposit registered with TDS on day of move-in'],
+    serviceName: 'Inventory Management', startDate: '2026-03-17', status: 'Active',
+    benefits: [DEMO_BENEFIT],
   }],
-
-  // Irfan Tenant
   ['svc-9', {
     id: 'svc-9', customerId: 'user-irfan-tenant', propertyId: 'prop-8',
-    serviceName: 'Tenant Relations', startDate: '2024-02-10', status: 'Active',
-    benefits: ['Check-in inventory completed & signed', 'Heating repair request logged & resolved within 48 hours'],
+    serviceName: 'Maintenance & Cleaning', startDate: '2026-03-18', status: 'Active',
+    benefits: [DEMO_BENEFIT],
   }],
-
-  // Adamya Tenant
   ['svc-10', {
     id: 'svc-10', customerId: 'user-adamya-tenant', propertyId: 'prop-9',
-    serviceName: 'Maintenance & Facilities', startDate: '2024-03-05', status: 'Active',
-    benefits: ['Bathroom leak repaired within 24 hours', 'Annual gas safety check completed on schedule'],
+    serviceName: 'Maintenance & Cleaning', startDate: '2026-03-19', status: 'Active',
+    benefits: [DEMO_BENEFIT],
   }],
-
-  // Shubham Student
   ['svc-11', {
     id: 'svc-11', customerId: 'user-shubham-student', propertyId: 'prop-10',
-    serviceName: 'Tenant Relations', startDate: '2024-01-20', status: 'Active',
-    benefits: ['Check-in inventory signed digitally', 'Contents insurance arranged through 3C Core', 'Maintenance reported via app — resolved in 2 days'],
+    serviceName: 'Inventory Management', startDate: '2026-03-20', status: 'Active',
+    benefits: [DEMO_BENEFIT],
   }],
-
-  // Irfan Student
   ['svc-12', {
     id: 'svc-12', customerId: 'user-irfan-student', propertyId: 'prop-11',
-    serviceName: 'Tenant Relations', startDate: '2024-02-20', status: 'Active',
-    benefits: ['Deposit protected with DPS on move-in', 'Heating fixed within 24 hours of report'],
+    serviceName: 'Deposit Negotiation', startDate: '2026-03-21', status: 'Active',
+    benefits: [DEMO_BENEFIT],
   }],
-
-  // Adamya Student
   ['svc-13', {
     id: 'svc-13', customerId: 'user-adamya-student', propertyId: 'prop-12',
-    serviceName: 'Tenant Relations', startDate: '2024-03-10', status: 'Active',
-    benefits: ['Room condition documented with photos at check-in', 'Internet fault resolved same day via landlord escalation'],
+    serviceName: 'Dispute Resolution', startDate: '2026-03-22', status: 'Active',
+    benefits: [DEMO_BENEFIT],
   }],
-])
+]
+
+export const customerServices = new Map<string, CustomerService>(
+  ENABLE_DEMO_ACCOUNTS ? demoCustomerServices : [],
+)
 
 export const getServicesByCustomer = (customerId: string) =>
   Array.from(customerServices.values()).filter(s => s.customerId === customerId)
